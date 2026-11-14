@@ -1,15 +1,13 @@
 // Aller-retour complet : demux -> decode -> recadrage 9:16 -> encode -> mux.
 // Repond aux questions 2 et 5 du §9 de la conception (risque 6).
 //
-// Contraintes tenues ici :
-//   - sortie 1080x1920 a 60 img/s, copie exacte de la source, aucun
-//     redimensionnement ni decimation ;
-//   - un seul decodeur et un seul encodeur ouverts, fermes quoi qu'il arrive
-//     (via withResources) ;
-//   - lecture du fichier par tranches, jamais en entier ;
-//   - hors de toute horloge temps reel : chaque image est encodee quand elle
-//     est prete, jamais quand la montre le dit. C'est ce qui elimine les
-//     saccades constatees avec MediaRecorder.
+// MESURE DU 2026-11-14, iPhone 12 mini / iOS 27.2 :
+//   - l'encodeur seul encode 180 images sur 180 ;
+//   - la meme configuration, avec un decodeur ouvert en parallele, rend ZERO
+//     paquet (file videe, etat `configured`, aucune erreur).
+// iOS limite les sessions materielles : le decodeur prend la seule disponible
+// et l'encodeur se tait en silence. D'ou l'essai successif des combinaisons
+// materiel/logiciel ci-dessous, au lieu d'une configuration unique supposee.
 
 import { drawPlan } from '../core/draw-plan.js';
 import { withResources } from '../core/with-resources.js';
@@ -18,14 +16,18 @@ import { Muxer, ArrayBufferTarget } from '../../vendor/mp4-muxer.js';
 
 export const OUT_W = 1080;
 export const OUT_H = 1920;
-// Cadence de repli seulement : la vraie valeur est lue sur la source.
-export const OUT_FPS = 60;
+export const OUT_FPS = 60; // repli seulement : la vraie cadence vient de la source
 
 const CHUNK = 1 << 20;
+const CODEC_CANDIDATES = ['avc1.640034', 'avc1.64002a', 'avc1.640028', 'avc1.42001f'];
 
-// Du plus capable au plus modeste : il faut au moins le niveau 4.2 pour
-// 1080x1920 a 60 img/s.
-const CODEC_CANDIDATES = ['avc1.640034', 'avc1.64002a', 'avc1.640028'];
+// Le logiciel est lent mais ne se dispute pas la session materielle.
+const STRATEGIES = [
+  { decoder: 'no-preference', encoder: 'no-preference', label: 'matériel des deux côtés' },
+  { decoder: 'prefer-software', encoder: 'no-preference', label: 'décodeur logiciel' },
+  { decoder: 'no-preference', encoder: 'prefer-software', label: 'encodeur logiciel' },
+  { decoder: 'prefer-software', encoder: 'prefer-software', label: 'tout en logiciel' }
+];
 
 async function pickVideoCodec(fps) {
   for (const codec of CODEC_CANDIDATES) {
@@ -36,12 +38,11 @@ async function pickVideoCodec(fps) {
       if (r && r.supported) return codec;
     } catch (_) { /* refus = mesure, pas erreur */ }
   }
-  throw new Error('aucun codec H.264 accepté en ' + OUT_W + 'x' + OUT_H + ' à ' + fps + ' img/s');
+  throw new Error('aucun codec H.264 accepté en ' + OUT_W + '×' + OUT_H + ' à ' + fps + ' img/s');
 }
 
 // mp4box.all.min.js n'expose que MP4Box.createFile ; DataStream est un global
-// distinct. Chercher MP4Box.DataStream plantait toute la chaine (mesure du
-// 2026-11-14 sur iPhone : "undefined is not an object").
+// distinct. Chercher MP4Box.DataStream plantait toute la chaine.
 function descriptionFor(mp4, trackId) {
   const DataStream = globalThis.DataStream;
   if (!DataStream) throw new Error('DataStream (mp4box) introuvable');
@@ -57,15 +58,13 @@ function descriptionFor(mp4, trackId) {
   return undefined;
 }
 
-// Extrait les `maxSeconds` premieres secondes en paquets encodes, sans jamais
-// charger le fichier entier.
 function demuxVideo(file, maxSeconds) {
   return new Promise((resolve, reject) => {
     const MP4Box = globalThis.MP4Box;
     if (!MP4Box) { reject(new Error('mp4box.js n’est pas chargé')); return; }
 
     const mp4 = MP4Box.createFile();
-    const chunks = [];
+    const samples = [];
     let track = null;
     let description;
     let enough = false;
@@ -74,24 +73,23 @@ function demuxVideo(file, maxSeconds) {
 
     mp4.onReady = (info) => {
       track = (info.videoTracks || [])[0];
-      if (!track) {
-        reject(new Error(file.name + ' : aucune piste vidéo'));
-        return;
-      }
+      if (!track) { reject(new Error(file.name + ' : aucune piste vidéo')); return; }
       description = descriptionFor(mp4, track.id);
       mp4.setExtractionOptions(track.id, null, { nbSamples: 100 });
       mp4.start();
     };
 
-    mp4.onSamples = (_id, _user, samples) => {
-      for (const s of samples) {
+    mp4.onSamples = (_id, _user, list) => {
+      for (const s of list) {
         if (s.cts / s.timescale > maxSeconds) { enough = true; return; }
-        chunks.push(new EncodedVideoChunk({
+        // on garde les donnees brutes : un EncodedVideoChunk ne sert qu'une
+        // fois, or on peut avoir a rejouer la passe avec une autre strategie
+        samples.push({
           type: s.is_sync ? 'key' : 'delta',
           timestamp: (s.cts / s.timescale) * 1e6,
           duration: (s.duration / s.timescale) * 1e6,
-          data: s.data
-        }));
+          data: s.data.slice(0)
+        });
       }
     };
 
@@ -105,10 +103,15 @@ function demuxVideo(file, maxSeconds) {
       }
       try { mp4.flush(); } catch (_) { /* conteneur tronque */ }
       if (!track) { reject(new Error(file.name + ' : conteneur illisible')); return; }
-      if (!chunks.length) { reject(new Error(file.name + ' : aucune image extraite')); return; }
-      resolve({ chunks, description, track });
+      if (!samples.length) { reject(new Error(file.name + ' : aucune image extraite')); return; }
+      resolve({ samples, description, track });
     })().catch(reject);
   });
+}
+
+function peakMemory() {
+  const m = performance.memory;
+  return m ? m.usedJSHeapSize : null;
 }
 
 let frameFromCanvasWorks = null;
@@ -124,7 +127,6 @@ function makeFrame(canvas, timestamp) {
       frameFromCanvasWorks = false;
     }
   }
-  // repli : passer par un ImageBitmap
   const bmp = canvas.transferToImageBitmap();
   try {
     return new VideoFrame(bmp, { timestamp });
@@ -133,37 +135,14 @@ function makeFrame(canvas, timestamp) {
   }
 }
 
-function peakMemory() {
-  const m = performance.memory;
-  return m ? m.usedJSHeapSize : null;
-}
-
-export async function roundTrip(file, opts = {}) {
-  const seconds = opts.seconds ?? 5;
-  const onProgress = opts.onProgress || (() => {});
-
-  onProgress({ phase: 'démuxage', done: 0, total: 1 });
-  const tDemux = performance.now();
-  const { chunks, description, track } = await demuxVideo(file, seconds);
-  const msDemux = performance.now() - tDemux;
-
-  const srcW = track.video ? track.video.width : track.track_width;
-  const srcH = track.video ? track.video.height : track.track_height;
-
-  // La cadence de sortie suit la source : la conception exige une copie, pas
-  // une conversion. Mesure du 2026-11-14 : la source reelle est a 30 img/s,
-  // pas 60 — forcer 60 aurait duplique une image sur deux.
-  const srcDur = track.duration / track.timescale;
-  const fps = Math.min(120, Math.max(1, Math.round(srcDur > 0 ? track.nb_samples / srcDur : OUT_FPS)));
+// Une passe complete avec une strategie d'acceleration donnee.
+async function runPass(ctx) {
+  const { samples, track, plan, fps, codec, strategy, onProgress, srcW, srcH } = ctx;
   const frameUs = 1e6 / fps;
-
-  const rotation = rotationFromMatrix(track.matrix);
-  const plan = drawPlan(srcW, srcH, rotation, OUT_W, OUT_H);
   const rect = plan.crop;
 
-  const codec = await pickVideoCodec(fps);
   const canvas = new OffscreenCanvas(OUT_W, OUT_H);
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const c2d = canvas.getContext('2d', { alpha: false });
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
@@ -176,58 +155,49 @@ export async function roundTrip(file, opts = {}) {
   let decoded = 0;
   let drawn = 0;
   let failure = null;
-  let msMux = 0;
-  let msPipeline = 0;
   let peak = peakMemory() || 0;
-  // liee ici, assignee dans le corps : la sortie du decodeur en a besoin,
-  // et elle est definie avant que withResources ne rende les deux objets.
   let encoder = null;
 
-  const result = await withResources(
+  await withResources(
     [
       () => new VideoEncoder({
-        output: (chunk, meta) => {
-          const t0 = performance.now();
-          muxer.addVideoChunk(chunk, meta);
-          msMux += performance.now() - t0;
-          encoded++;
-        },
+        output: (chunk, meta) => { muxer.addVideoChunk(chunk, meta); encoded++; },
         error: (e) => { failure = failure || e; }
       }),
       () => new VideoDecoder({
         output: (frame) => {
-         try {
           try {
-            ctx.save();
-            ctx.translate(OUT_W / 2, OUT_H / 2);
-            if (plan.radians) ctx.rotate(plan.radians);
-            ctx.drawImage(
-              frame,
-              rect.sx, rect.sy, rect.sw, rect.sh,
-              -plan.drawW / 2, -plan.drawH / 2, plan.drawW, plan.drawH
-            );
-            ctx.restore();
-          } finally {
-            frame.close();
+            try {
+              c2d.save();
+              c2d.translate(OUT_W / 2, OUT_H / 2);
+              if (plan.radians) c2d.rotate(plan.radians);
+              c2d.drawImage(
+                frame,
+                rect.sx, rect.sy, rect.sw, rect.sh,
+                -plan.drawW / 2, -plan.drawH / 2, plan.drawW, plan.drawH
+              );
+              c2d.restore();
+            } finally {
+              frame.close();
+            }
+            decoded++;
+            const out = makeFrame(canvas, Math.round(drawn * frameUs));
+            try {
+              encoder.encode(out, { keyFrame: drawn % fps === 0 });
+            } finally {
+              out.close();
+            }
+            drawn++;
+            if (drawn % 10 === 0) {
+              const m = peakMemory();
+              if (m && m > peak) peak = m;
+              onProgress({ phase: strategy.label, done: drawn, total: samples.length });
+            }
+          } catch (e) {
+            // sans ce filet l'exception est perdue : les callbacks WebCodecs
+            // tournent dans leur propre tache
+            failure = failure || e;
           }
-          decoded++;
-          const out = makeFrame(canvas, Math.round(drawn * frameUs));
-          try {
-            encoder.encode(out, { keyFrame: drawn % fps === 0 });
-          } finally {
-            out.close();
-          }
-          drawn++;
-          if (drawn % 10 === 0) {
-            const m = peakMemory();
-            if (m && m > peak) peak = m;
-            onProgress({ phase: 'décodage', done: drawn, total: chunks.length });
-          }
-         } catch (e) {
-          // sans ce filet, l'exception est perdue et la chaine meurt en
-          // silence : c'est exactement ce qui s'est produit le 2026-11-14.
-          failure = failure || e;
-         }
         },
         error: (e) => { failure = failure || e; }
       })
@@ -237,78 +207,105 @@ export async function roundTrip(file, opts = {}) {
 
       encoder.configure({
         codec, width: OUT_W, height: OUT_H, framerate: fps,
-        bitrate: 12_000_000, latencyMode: 'quality'
+        bitrate: 12_000_000, latencyMode: 'quality',
+        hardwareAcceleration: strategy.encoder
       });
-      const decoderConfig = {
+      decoder.configure({
         codec: track.codec,
         codedWidth: srcW,
         codedHeight: srcH,
-        description
-      };
-      const support = await VideoDecoder.isConfigSupported(decoderConfig);
-      if (!support || !support.supported) {
-        throw new Error('décodeur refusé pour ' + track.codec + ' en ' + srcW + '×' + srcH);
-      }
-      decoder.configure(decoderConfig);
+        description: ctx.description,
+        hardwareAcceleration: strategy.decoder
+      });
 
-      const tPipeline = performance.now();
-      for (const chunk of chunks) {
+      for (const s of samples) {
         if (failure) break;
-        decoder.decode(chunk);
-        // contre-pression : on ne laisse jamais la file enfler
+        decoder.decode(new EncodedVideoChunk(s));
         while (decoder.decodeQueueSize > 8 || encoder.encodeQueueSize > 8) {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
       await decoder.flush();
-      onProgress({ phase: 'encodage', done: drawn, total: chunks.length });
       await encoder.flush();
-      // Safari peut rendre la main sur flush() avant d'avoir emis les paquets.
+      // Safari peut rendre la main avant d'emettre les paquets
       for (let w = 0; w < 20 && encoded === 0; w++) {
         await new Promise((r) => setTimeout(r, 100));
       }
-      msPipeline = performance.now() - tPipeline;
-
-      if (failure) {
-        throw new Error(
-          (failure.message || failure) +
-          ' [paquets ' + chunks.length + ', décodées ' + decoded +
-          ', dessinées ' + drawn + ', encodées ' + encoded + ']'
-        );
-      }
-      if (encoded === 0) {
-        throw new Error(
-          'aucune image encodée — l’encodeur ne rend rien' +
-          ' [codec ' + codec + ', état ' + encoder.state +
-          ', file ' + encoder.encodeQueueSize +
-          ', paquets ' + chunks.length + ', décodées ' + decoded +
-          ', dessinées ' + drawn + '] — lance « Tester l’encodeur seul »'
-        );
-      }
-      return true;
     }
   );
 
-  muxer.finalize();
-  const blob = new Blob([target.buffer], { type: 'video/mp4' });
-  onProgress({ phase: 'terminé', done: drawn, total: chunks.length });
+  if (failure) return { encoded, decoded, drawn, error: failure.message || String(failure) };
+  if (encoded === 0) return { encoded, decoded, drawn, error: null };
 
+  muxer.finalize();
   return {
-    blob,
-    ok: result === true,
-    codec,
-    source: srcW + '×' + srcH + ' @ ' + fps + ' img/s, rotation ' + rotation + '°',
-    fps,
-    rotation,
-    downscale: plan.downscale,
-    crop: rect,
-    frames: drawn,
-    encodedChunks: encoded,
-    msDemux: Math.round(msDemux),
-    // decode + recadrage + encode, de bout en bout : c'est ce chiffre qui
-    // alimente `encodeMsPerReel` du verdict (tache 6).
-    msPipeline: Math.round(msPipeline),
-    msMux: Math.round(msMux),
-    peakBytes: peak || null
+    encoded, decoded, drawn, peak,
+    blob: new Blob([target.buffer], { type: 'video/mp4' })
   };
+}
+
+export async function roundTrip(file, opts = {}) {
+  const seconds = opts.seconds ?? 5;
+  const onProgress = opts.onProgress || (() => {});
+
+  onProgress({ phase: 'démuxage', done: 0, total: 1 });
+  const tDemux = performance.now();
+  const { samples, description, track } = await demuxVideo(file, seconds);
+  const msDemux = performance.now() - tDemux;
+
+  const srcW = track.video ? track.video.width : track.track_width;
+  const srcH = track.video ? track.video.height : track.track_height;
+
+  const srcDur = track.duration / track.timescale;
+  const fps = Math.min(120, Math.max(1,
+    Math.round(srcDur > 0 ? track.nb_samples / srcDur : OUT_FPS)));
+
+  const rotation = rotationFromMatrix(track.matrix);
+  const plan = drawPlan(srcW, srcH, rotation, OUT_W, OUT_H);
+  const codec = await pickVideoCodec(fps);
+
+  const attempts = [];
+  const tPipeline = performance.now();
+
+  for (const strategy of STRATEGIES) {
+    onProgress({ phase: strategy.label, done: 0, total: samples.length });
+    let pass;
+    try {
+      pass = await runPass({
+        samples, description, track, plan, fps, codec, strategy,
+        onProgress, srcW, srcH
+      });
+    } catch (e) {
+      pass = { encoded: 0, decoded: 0, drawn: 0, error: e.message || String(e) };
+    }
+    attempts.push({ label: strategy.label, encoded: pass.encoded, error: pass.error });
+
+    if (pass.blob) {
+      return {
+        blob: pass.blob,
+        ok: true,
+        codec,
+        strategy: strategy.label,
+        attempts,
+        source: srcW + '×' + srcH + ' @ ' + fps + ' img/s, rotation ' + rotation + '°',
+        fps,
+        rotation,
+        downscale: plan.downscale,
+        crop: plan.crop,
+        frames: pass.drawn,
+        encodedChunks: pass.encoded,
+        msDemux: Math.round(msDemux),
+        msPipeline: Math.round(performance.now() - tPipeline),
+        peakBytes: pass.peak || null
+      };
+    }
+  }
+
+  const detail = attempts
+    .map((a) => a.label + ' : ' + a.encoded + (a.error ? ' (' + a.error + ')' : ''))
+    .join(' — ');
+  throw new Error(
+    'aucune combinaison matériel/logiciel ne produit de paquet. ' + detail +
+    ' [images ' + samples.length + ', codec ' + codec + ']'
+  );
 }

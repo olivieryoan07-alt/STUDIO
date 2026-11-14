@@ -125,7 +125,7 @@
   import { shareVideo } from './src/probe/share.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.8.0';
+  window.STUDIO_VERSION = '0.9.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -224,10 +224,12 @@
 
       $('rres').innerHTML =
         row('Source', r.source) +
+        row('Essais', r.attempts.map((a) => a.label + ' → ' + a.encoded).join('<br>')) +
         row('Recadrage', r.crop.sw + '×' + r.crop.sh + ' @ ' + r.crop.sx + ',' + r.crop.sy) +
         row('Réduction de définition', chip(!r.downscale, r.downscale ? 'oui' : 'non')) +
         row('Cadence de sortie', r.fps + ' img/s') +
         row('Codec de sortie', r.codec) +
+        row('Stratégie retenue', '<span style="color:var(--amber)">' + r.strategy + '</span>') +
         row('Images encodées', r.frames) +
         row('Démuxage', r.msDemux + ' ms') +
         row('Décode + encode', r.msPipeline + ' ms') +
