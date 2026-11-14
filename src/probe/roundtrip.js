@@ -152,16 +152,32 @@ async function runPass(ctx) {
   });
 
   let encoded = 0;
+  let produced = 0;
   let decoded = 0;
   let drawn = 0;
+  let metaSeen = null;
   let failure = null;
+  let muxFailure = null;
   let peak = peakMemory() || 0;
   let encoder = null;
 
   await withResources(
     [
       () => new VideoEncoder({
-        output: (chunk, meta) => { muxer.addVideoChunk(chunk, meta); encoded++; },
+        output: (chunk, meta) => {
+          produced++;
+          if (metaSeen === null) {
+            metaSeen = !!(meta && meta.decoderConfig) ? 'avec decoderConfig' : 'sans decoderConfig';
+          }
+          try {
+            muxer.addVideoChunk(chunk, meta);
+            encoded++;
+          } catch (e) {
+            // meme piege que cote decodeur : sans ce filet, un refus du muxeur
+            // passe pour un encodeur muet.
+            muxFailure = muxFailure || e;
+          }
+        },
         error: (e) => { failure = failure || e; }
       }),
       () => new VideoDecoder({
@@ -208,7 +224,10 @@ async function runPass(ctx) {
       encoder.configure({
         codec, width: OUT_W, height: OUT_H, framerate: fps,
         bitrate: 12_000_000, latencyMode: 'quality',
-        hardwareAcceleration: strategy.encoder
+        hardwareAcceleration: strategy.encoder,
+        // mp4-muxer exige de l'AVCC. Chrome le donne par defaut, pas Safari :
+        // sans cette ligne les paquets sortent en Annex B et le muxeur les refuse.
+        avc: { format: 'avc' }
       });
       decoder.configure({
         codec: track.codec,
@@ -234,8 +253,24 @@ async function runPass(ctx) {
     }
   );
 
-  if (failure) return { encoded, decoded, drawn, error: failure.message || String(failure) };
-  if (encoded === 0) return { encoded, decoded, drawn, error: null };
+  if (failure) {
+    return { encoded, produced, decoded, drawn, error: 'encodeur : ' + (failure.message || failure) };
+  }
+  if (muxFailure) {
+    return {
+      encoded, produced, decoded, drawn,
+      error: 'muxeur refuse les paquets (' + (muxFailure.message || muxFailure) +
+             ') — ' + produced + ' produits, métadonnées ' + metaSeen
+    };
+  }
+  if (encoded === 0) {
+    return {
+      encoded, produced, decoded, drawn,
+      error: produced > 0
+        ? produced + ' paquets produits mais aucun muxé'
+        : null
+    };
+  }
 
   muxer.finalize();
   return {
@@ -278,7 +313,12 @@ export async function roundTrip(file, opts = {}) {
     } catch (e) {
       pass = { encoded: 0, decoded: 0, drawn: 0, error: e.message || String(e) };
     }
-    attempts.push({ label: strategy.label, encoded: pass.encoded, error: pass.error });
+    attempts.push({
+      label: strategy.label,
+      encoded: pass.encoded,
+      produced: pass.produced || 0,
+      error: pass.error
+    });
 
     if (pass.blob) {
       return {
@@ -302,7 +342,8 @@ export async function roundTrip(file, opts = {}) {
   }
 
   const detail = attempts
-    .map((a) => a.label + ' : ' + a.encoded + (a.error ? ' (' + a.error + ')' : ''))
+    .map((a) => a.label + ' : produits ' + a.produced + ', muxés ' + a.encoded +
+                (a.error ? ' — ' + a.error : ''))
     .join(' — ');
   throw new Error(
     'aucune combinaison matériel/logiciel ne produit de paquet. ' + detail +
