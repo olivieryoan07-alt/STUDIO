@@ -263,6 +263,10 @@ export async function roundTrip(file, opts = {}) {
       await decoder.flush();
       onProgress({ phase: 'encodage', done: drawn, total: chunks.length });
       await encoder.flush();
+      // Safari peut rendre la main sur flush() avant d'avoir emis les paquets.
+      for (let w = 0; w < 20 && encoded === 0; w++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
       msPipeline = performance.now() - tPipeline;
 
       if (failure) {
@@ -274,10 +278,11 @@ export async function roundTrip(file, opts = {}) {
       }
       if (encoded === 0) {
         throw new Error(
-          'aucune image encodée — la chaîne s’est arrêtée en silence' +
-          ' [paquets ' + chunks.length + ', décodées ' + decoded +
-          ', dessinées ' + drawn + ', VideoFrame depuis canvas: ' +
-          (frameFromCanvasWorks === null ? 'jamais tenté' : frameFromCanvasWorks) + ']'
+          'aucune image encodée — l’encodeur ne rend rien' +
+          ' [codec ' + codec + ', état ' + encoder.state +
+          ', file ' + encoder.encodeQueueSize +
+          ', paquets ' + chunks.length + ', décodées ' + decoded +
+          ', dessinées ' + drawn + '] — lance « Tester l’encodeur seul »'
         );
       }
       return true;

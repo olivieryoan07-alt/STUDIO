@@ -95,9 +95,12 @@
     <h2>03 · Aller-retour complet — démux, décode, recadrage, encode, mux</h2>
     <p>Réencode en 1080×1920 à la cadence de la source, image par image, hors de toute horloge temps réel. Choisis d'abord une vidéo ci-dessus.</p>
     <div class="row">
+      <button id="enctest">Tester l’encodeur seul</button>
       <button id="rt5" disabled>Réencoder 5 s</button>
       <button id="rt20" disabled>Réencoder 20 s</button>
     </div>
+    <p class="status" id="estat"></p>
+    <table id="eres"></table>
     <p class="status" id="rstat"></p>
     <table id="rres"></table>
     <video id="rout" class="out" controls playsinline></video>
@@ -118,8 +121,9 @@
   import { summariseTrack } from './src/core/track-summary.js';
   import { roundTrip } from './src/probe/roundtrip.js';
   import { shareVideo } from './src/probe/share.js';
+  import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.5.0';
+  window.STUDIO_VERSION = '0.6.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -243,6 +247,32 @@
       $('rt20').disabled = !chosen;
     }
   }
+
+  $('enctest').addEventListener('click', async () => {
+    $('enctest').disabled = true;
+    $('eres').innerHTML = '';
+    $('estat').className = 'status';
+    $('estat').textContent = 'test de l’encodeur, sans fichier…';
+    try {
+      const r = await encoderSelfTest(30);
+      $('eres').innerHTML = r.tried.map((a) =>
+        row(a.codec + '<br><span style="color:var(--dimmer)">' + a.options + '</span>',
+            (a.supported === false ? chip(false, 'refusé') : chip(a.chunks > 0, a.chunks + ' paquets')) +
+            (a.error ? '<br><span style="color:var(--rouge)">' + a.error + '</span>' : '') +
+            (a.state ? '<br><span style="color:var(--dimmer)">état ' + a.state +
+                       ', après flush ' + a.afterFlush + '</span>' : ''))
+      ).join('');
+      $('estat').className = r.ok ? 'status' : 'status err';
+      $('estat').textContent = r.ok
+        ? 'l’encodeur fonctionne avec ' + r.codec + ' (' + r.options + ')'
+        : 'aucune combinaison ne produit de paquet — ' + r.reason;
+    } catch (err) {
+      $('estat').className = 'status err';
+      $('estat').textContent = err.message;
+    } finally {
+      $('enctest').disabled = false;
+    }
+  });
 
   $('rt5').addEventListener('click', () => runRoundTrip(5));
   $('rt20').addEventListener('click', () => runRoundTrip(20));
