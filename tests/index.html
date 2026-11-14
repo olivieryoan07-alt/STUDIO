@@ -23,11 +23,14 @@
 <p id="summary">chargement…</p>
 <div id="out"></div>
 
+<script src="../vendor/mp4box.all.min.js"></script>
 <script type="module">
   const summary = document.getElementById('summary');
   try {
     const { runTests } = await import('./harness.js');
     await import('./harness.test.js');
+    await import('./track-summary.test.js');
+    await import('./inspect.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';

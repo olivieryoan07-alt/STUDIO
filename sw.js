@@ -1,11 +1,15 @@
 // Cache du socle. Liste en dur : pas d'etape de compilation dans ce projet.
-const CACHE = 'studio-v0.1.0';
+const CACHE = 'studio-v0.2.0';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './vendor/mp4box.all.min.js',
+  './src/core/track-summary.js',
+  './src/probe/caps.js',
+  './src/probe/inspect.js'
 ];
 
 self.addEventListener('install', (e) => {

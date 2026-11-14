@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="STUDIO">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <title>STUDIO</title>
 <style>
   :root{
@@ -18,26 +19,45 @@
     --mono:"SF Mono",Menlo,monospace;
   }
   *{box-sizing:border-box}
-  html,body{height:100%}
   body{
     margin:0;background:var(--ground);color:var(--txt);
     font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    padding:max(18px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom));
+    padding:max(18px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom));
   }
   .wrap{max-width:640px;margin:0 auto}
-  header{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+  header{display:flex;align-items:baseline;gap:10px}
   h1{font-size:26px;letter-spacing:.14em;text-transform:uppercase;margin:0;font-weight:700}
   .version{font-family:var(--mono);font-size:12px;color:var(--dimmer)}
-  .tagline{color:var(--dim);margin:0 0 20px;font-size:13.5px}
-  .phase{
-    border:1px solid var(--line);border-left:3px solid var(--amber);
-    border-radius:3px;background:var(--panel);padding:14px 16px;
-  }
-  .phase h2{font-size:12px;letter-spacing:.13em;text-transform:uppercase;
-            color:var(--amber);margin:0 0 7px}
-  .phase p{margin:0 0 8px;color:var(--dim);font-size:13.5px}
-  .phase p:last-child{margin-bottom:0}
-  #net{font-family:var(--mono);font-size:12px;color:var(--dimmer);margin-top:16px}
+  .tagline{color:var(--dim);margin:2px 0 20px;font-size:13.5px}
+
+  .card{border:1px solid var(--line);border-radius:3px;background:var(--panel);
+        padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--amber);margin:0 0 9px}
+  .card > p{margin:0 0 11px;color:var(--dim);font-size:13.5px}
+
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;
+        font-variant-numeric:tabular-nums}
+  td{padding:4px 0;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  td:first-child{color:var(--dim);padding-right:12px}
+  td:last-child{text-align:right;word-break:break-all}
+  tr:last-child td{border-bottom:0}
+  .chip{display:inline-block;padding:1px 6px;border-radius:2px;font-size:11px;
+        letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+  .ok{background:rgba(82,160,111,.17);color:var(--vert)}
+  .no{background:rgba(207,75,54,.17);color:var(--rouge)}
+
+  input[type=file]{display:block;font-family:var(--mono);font-size:12.5px;
+                   color:var(--dim);margin-bottom:10px;max-width:100%}
+  input[type=file]::file-selector-button{
+    font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11px;font-weight:600;
+    background:transparent;color:var(--amber);border:1px solid var(--amber);
+    border-radius:2px;padding:7px 13px;margin-right:10px}
+  .status{font-family:var(--mono);font-size:12px;color:var(--amber);margin:10px 0 0;min-height:1.2em}
+  .status.err{color:var(--rouge)}
+  .warn{border-left:2px solid var(--rouge);padding-left:10px;margin-top:10px;
+        color:var(--txt);font-size:13px}
+  #net{font-family:var(--mono);font-size:11.5px;color:var(--dimmer);margin-top:6px}
 </style>
 </head>
 <body>
@@ -46,31 +66,96 @@
     <h1>Studio</h1>
     <span class="version" id="version"></span>
   </header>
-  <p class="tagline">Monteur de reels automatique.</p>
+  <p class="tagline">Phase 0 — sondes de faisabilité.</p>
 
-  <section class="phase">
-    <h2>Phase 0 — socle mesuré</h2>
-    <p>L'app est installée et démarre hors ligne. Les sondes de faisabilité arrivent aux tâches suivantes du plan.</p>
-    <p>Rien n'est envoyé sur le réseau : les fichiers restent sur l'appareil.</p>
+  <section class="card">
+    <h2>01 · Ce que le navigateur sait faire</h2>
+    <table id="caps"><tr><td>mesure…</td><td></td></tr></table>
+    <p id="net"></p>
   </section>
 
-  <p id="net"></p>
+  <section class="card">
+    <h2>02 · Ce que le sélecteur remet réellement</h2>
+    <p>Choisis une vraie vidéo de la galerie. Elle est lue par tranches, jamais chargée en entier, et rien n'est envoyé.</p>
+    <input type="file" id="vfile" accept="video/*">
+    <p class="status" id="vstat"></p>
+    <table id="vres"></table>
+    <div id="vwarn"></div>
+  </section>
 </div>
 
-<script>
-  window.STUDIO_VERSION = '0.1.0';
+<script src="vendor/mp4box.all.min.js"></script>
+<script type="module">
+  import { capabilities } from './src/probe/caps.js';
+  import { inspectFile } from './src/probe/inspect.js';
+  import { summariseTrack } from './src/core/track-summary.js';
+
+  window.STUDIO_VERSION = '0.2.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
+  const $ = (id) => document.getElementById(id);
+  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+  const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
+
   function paintNet() {
-    document.getElementById('net').textContent =
-      navigator.onLine ? 'réseau : en ligne' : 'réseau : hors ligne — l’app fonctionne quand même';
+    $('net').textContent = navigator.onLine
+      ? 'réseau : en ligne'
+      : 'réseau : hors ligne — l’app fonctionne quand même';
   }
   paintNet();
   addEventListener('online', paintNet);
   addEventListener('offline', paintNet);
 
+  const caps = await capabilities();
+  $('caps').innerHTML =
+    row('Décodage WebCodecs', chip(caps.videoDecoder, caps.videoDecoder ? 'oui' : 'non')) +
+    row('Encodage WebCodecs', chip(caps.videoEncoder, caps.videoEncoder ? 'oui' : 'non')) +
+    row('Encodage audio', chip(caps.audioEncoder, caps.audioEncoder ? 'oui' : 'non')) +
+    row('AAC (mp4a.40.2)', chip(caps.audioAac, caps.audioAac ? 'oui' : 'non')) +
+    row('Partage de fichier', chip(caps.share, caps.share ? 'oui' : 'non')) +
+    row('Codecs vidéo acceptés', caps.containers.length
+      ? caps.containers.join('<br>')
+      : chip(false, 'aucun'));
+
+  $('vfile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $('vres').innerHTML = '';
+    $('vwarn').innerHTML = '';
+    $('vstat').className = 'status';
+    $('vstat').textContent = 'lecture du conteneur…';
+
+    try {
+      const t0 = performance.now();
+      const cfg = await inspectFile(file);
+      const verdict = summariseTrack(cfg);
+      const ms = Math.round(performance.now() - t0);
+
+      $('vres').innerHTML =
+        row('Fichier', file.name) +
+        row('Poids', (file.size / 1048576).toFixed(1) + ' Mo') +
+        row('Codec', cfg.codec) +
+        row('Famille', verdict.codecFamily) +
+        row('Définition', cfg.codedWidth + '×' + cfg.codedHeight) +
+        row('Cadence', cfg.fps + ' img/s') +
+        row('Durée', cfg.durationSec + ' s') +
+        row('Rotation', cfg.rotation + '°') +
+        row('Profondeur', cfg.bitDepth + ' bits') +
+        row('HDR', chip(!verdict.hdr, verdict.hdr ? 'oui' : 'non')) +
+        row('Marques', cfg.brands) +
+        row('Lu en', ms + ' ms');
+
+      $('vwarn').innerHTML = verdict.warnings
+        .map((w) => `<div class="warn">${w}</div>`).join('');
+      $('vstat').textContent = 'terminé.';
+    } catch (err) {
+      $('vstat').className = 'status err';
+      $('vstat').textContent = err.message;
+    }
+  });
+
   if ('serviceWorker' in navigator) {
-    addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    navigator.serviceWorker.register('sw.js');
   }
 </script>
 </body>
