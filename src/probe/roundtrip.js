@@ -170,13 +170,18 @@ async function runPass(ctx) {
             metaSeen = !!(meta && meta.decoderConfig) ? 'avec decoderConfig' : 'sans decoderConfig';
           }
           try {
-            // Safari ne renseigne pas chunk.duration (Chrome si). mp4-muxer
-            // l'exige. On la fournit : c'est 1/cadence, on la connait.
+            // Safari ne renseigne pas chunk.duration (Chrome si) et mp4-muxer
+            // l'exige. addVideoChunk() lit `sample.duration` directement et ne
+            // permet pas de la fournir : son 4e argument est
+            // compositionTimeOffset, pas la duree. Il faut donc passer par
+            // addVideoChunkRaw(data, type, timestamp, duration, meta).
             const ts = Number.isFinite(chunk.timestamp) ? chunk.timestamp : produced * frameUs;
             const dur = Number.isFinite(chunk.duration) && chunk.duration >= 0
               ? chunk.duration
               : frameUs;
-            muxer.addVideoChunk(chunk, meta, Math.round(ts), Math.round(dur));
+            const data = new Uint8Array(chunk.byteLength);
+            chunk.copyTo(data);
+            muxer.addVideoChunkRaw(data, chunk.type, Math.round(ts), Math.round(dur), meta);
             encoded++;
           } catch (e) {
             // meme piege que cote decodeur : sans ce filet, un refus du muxeur
