@@ -58,6 +58,14 @@
   .warn{border-left:2px solid var(--rouge);padding-left:10px;margin-top:10px;
         color:var(--txt);font-size:13px}
   #net{font-family:var(--mono);font-size:11.5px;color:var(--dimmer);margin-top:6px}
+  .row{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+  button{font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11.5px;
+         font-weight:600;background:transparent;color:var(--amber);
+         border:1px solid var(--amber);border-radius:2px;padding:8px 14px;cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button:not(:disabled):hover{background:var(--amber);color:#171208}
+  video.out{width:100%;max-width:240px;display:block;margin-top:12px;border-radius:4px;
+            border:1px solid var(--line);background:#05070a}
 </style>
 </head>
 <body>
@@ -82,6 +90,25 @@
     <table id="vres"></table>
     <div id="vwarn"></div>
   </section>
+
+  <section class="card">
+    <h2>03 · Aller-retour complet — démux, décode, recadrage, encode, mux</h2>
+    <p>Réencode en 1080×1920 à 60 img/s, image par image, hors de toute horloge temps réel. Choisis d'abord une vidéo ci-dessus.</p>
+    <div class="row">
+      <button id="rt5" disabled>Réencoder 5 s</button>
+      <button id="rt20" disabled>Réencoder 20 s</button>
+    </div>
+    <p class="status" id="rstat"></p>
+    <table id="rres"></table>
+    <video id="rout" class="out" controls playsinline></video>
+  </section>
+
+  <section class="card">
+    <h2>04 · Partage vers Photos</h2>
+    <p>C'est par là que le montage final atterrirait dans ta galerie. Si ça échoue ici, c'est le risque n°1 de la conception.</p>
+    <button id="shr" disabled>Partager vers Photos</button>
+    <p class="status" id="sstat"></p>
+  </section>
 </div>
 
 <script src="vendor/mp4box.all.min.js"></script>
@@ -89,8 +116,10 @@
   import { capabilities } from './src/probe/caps.js';
   import { inspectFile } from './src/probe/inspect.js';
   import { summariseTrack } from './src/core/track-summary.js';
+  import { roundTrip } from './src/probe/roundtrip.js';
+  import { shareVideo } from './src/probe/share.js';
 
-  window.STUDIO_VERSION = '0.2.0';
+  window.STUDIO_VERSION = '0.3.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -116,6 +145,8 @@
     row('Codecs vidéo acceptés', caps.containers.length
       ? caps.containers.join('<br>')
       : chip(false, 'aucun'));
+
+  let chosen = null;
 
   $('vfile').addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -148,10 +179,80 @@
       $('vwarn').innerHTML = verdict.warnings
         .map((w) => `<div class="warn">${w}</div>`).join('');
       $('vstat').textContent = 'terminé.';
+      chosen = file;
+      $('rt5').disabled = false;
+      $('rt20').disabled = false;
     } catch (err) {
+      chosen = null;
+      $('rt5').disabled = true;
+      $('rt20').disabled = true;
       $('vstat').className = 'status err';
       $('vstat').textContent = err.message;
     }
+  });
+
+  // ---- 03 aller-retour complet ----
+  let chosenBlob = null;
+
+  async function runRoundTrip(seconds) {
+    $('rt5').disabled = true;
+    $('rt20').disabled = true;
+    $('shr').disabled = true;
+    $('rres').innerHTML = '';
+    $('rstat').className = 'status';
+    $('sstat').textContent = '';
+
+    const wall = performance.now();
+    try {
+      const r = await roundTrip(chosen, {
+        seconds,
+        onProgress: (p) => {
+          $('rstat').textContent = p.total
+            ? `${p.phase} ${p.done}/${p.total}`
+            : p.phase + '…';
+        }
+      });
+      const total = Math.round(performance.now() - wall);
+      chosenBlob = r.blob;
+      $('rout').src = URL.createObjectURL(r.blob);
+
+      $('rres').innerHTML =
+        row('Source', r.source) +
+        row('Recadrage', r.crop.sw + '×' + r.crop.sh + ' @ ' + r.crop.sx + ',' + r.crop.sy) +
+        row('Codec de sortie', r.codec) +
+        row('Images encodées', r.frames) +
+        row('Démuxage', r.msDemux + ' ms') +
+        row('Décode + encode', r.msPipeline + ' ms') +
+        row('Muxage', r.msMux + ' ms') +
+        row('Total', total + ' ms') +
+        row('Poids', (r.blob.size / 1048576).toFixed(2) + ' Mo') +
+        row('Pic mémoire JS', r.peakBytes ? (r.peakBytes / 1048576).toFixed(0) + ' Mo' : 'non mesurable') +
+        row('×3 montages', Math.round(total * 3 / 1000) + ' s ' +
+            chip(total * 3 <= 120000, total * 3 <= 120000 ? 'dans le budget' : 'repli §5.5'));
+
+      $('rstat').textContent = 'terminé — lis la vidéo ci-dessous pour juger l’image.';
+      $('shr').disabled = false;
+    } catch (err) {
+      $('rstat').className = 'status err';
+      $('rstat').textContent = err.message;
+      chosenBlob = null;
+    } finally {
+      $('rt5').disabled = !chosen;
+      $('rt20').disabled = !chosen;
+    }
+  }
+
+  $('rt5').addEventListener('click', () => runRoundTrip(5));
+  $('rt20').addEventListener('click', () => runRoundTrip(20));
+
+  // ---- 04 partage ----
+  $('shr').addEventListener('click', async () => {
+    if (!chosenBlob) return;
+    const r = await shareVideo(chosenBlob, 'studio-essai.mp4');
+    $('sstat').className = r.ok ? 'status' : 'status err';
+    $('sstat').textContent = r.ok
+      ? 'feuille ouverte — « Enregistrer la vidéo » met le fichier dans Photos.'
+      : r.reason;
   });
 
   if ('serviceWorker' in navigator) {

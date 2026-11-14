@@ -32,6 +32,8 @@
     await import('./track-summary.test.js');
     await import('./inspect.test.js');
     await import('./crop.test.js');
+    await import('./with-resources.test.js');
+    await import('./share.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
