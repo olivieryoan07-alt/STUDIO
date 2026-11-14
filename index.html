@@ -93,7 +93,7 @@
 
   <section class="card">
     <h2>03 · Aller-retour complet — démux, décode, recadrage, encode, mux</h2>
-    <p>Réencode en 1080×1920 à 60 img/s, image par image, hors de toute horloge temps réel. Choisis d'abord une vidéo ci-dessus.</p>
+    <p>Réencode en 1080×1920 à la cadence de la source, image par image, hors de toute horloge temps réel. Choisis d'abord une vidéo ci-dessus.</p>
     <div class="row">
       <button id="rt5" disabled>Réencoder 5 s</button>
       <button id="rt20" disabled>Réencoder 20 s</button>
@@ -119,7 +119,7 @@
   import { roundTrip } from './src/probe/roundtrip.js';
   import { shareVideo } from './src/probe/share.js';
 
-  window.STUDIO_VERSION = '0.4.0';
+  window.STUDIO_VERSION = '0.5.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);

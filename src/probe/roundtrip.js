@@ -111,6 +111,28 @@ function demuxVideo(file, maxSeconds) {
   });
 }
 
+let frameFromCanvasWorks = null;
+
+function makeFrame(canvas, timestamp) {
+  if (frameFromCanvasWorks !== false) {
+    try {
+      const f = new VideoFrame(canvas, { timestamp });
+      frameFromCanvasWorks = true;
+      return f;
+    } catch (e) {
+      if (frameFromCanvasWorks === true) throw e;
+      frameFromCanvasWorks = false;
+    }
+  }
+  // repli : passer par un ImageBitmap
+  const bmp = canvas.transferToImageBitmap();
+  try {
+    return new VideoFrame(bmp, { timestamp });
+  } finally {
+    bmp.close();
+  }
+}
+
 function peakMemory() {
   const m = performance.memory;
   return m ? m.usedJSHeapSize : null;
@@ -151,6 +173,7 @@ export async function roundTrip(file, opts = {}) {
   });
 
   let encoded = 0;
+  let decoded = 0;
   let drawn = 0;
   let failure = null;
   let msMux = 0;
@@ -173,6 +196,7 @@ export async function roundTrip(file, opts = {}) {
       }),
       () => new VideoDecoder({
         output: (frame) => {
+         try {
           try {
             ctx.save();
             ctx.translate(OUT_W / 2, OUT_H / 2);
@@ -186,7 +210,8 @@ export async function roundTrip(file, opts = {}) {
           } finally {
             frame.close();
           }
-          const out = new VideoFrame(canvas, { timestamp: Math.round(drawn * frameUs) });
+          decoded++;
+          const out = makeFrame(canvas, Math.round(drawn * frameUs));
           try {
             encoder.encode(out, { keyFrame: drawn % fps === 0 });
           } finally {
@@ -198,6 +223,11 @@ export async function roundTrip(file, opts = {}) {
             if (m && m > peak) peak = m;
             onProgress({ phase: 'décodage', done: drawn, total: chunks.length });
           }
+         } catch (e) {
+          // sans ce filet, l'exception est perdue et la chaine meurt en
+          // silence : c'est exactement ce qui s'est produit le 2026-11-14.
+          failure = failure || e;
+         }
         },
         error: (e) => { failure = failure || e; }
       })
@@ -209,13 +239,17 @@ export async function roundTrip(file, opts = {}) {
         codec, width: OUT_W, height: OUT_H, framerate: fps,
         bitrate: 12_000_000, latencyMode: 'quality'
       });
-      decoder.configure({
+      const decoderConfig = {
         codec: track.codec,
         codedWidth: srcW,
         codedHeight: srcH,
-        description,
-        hardwareAcceleration: 'prefer-hardware'
-      });
+        description
+      };
+      const support = await VideoDecoder.isConfigSupported(decoderConfig);
+      if (!support || !support.supported) {
+        throw new Error('décodeur refusé pour ' + track.codec + ' en ' + srcW + '×' + srcH);
+      }
+      decoder.configure(decoderConfig);
 
       const tPipeline = performance.now();
       for (const chunk of chunks) {
@@ -231,7 +265,21 @@ export async function roundTrip(file, opts = {}) {
       await encoder.flush();
       msPipeline = performance.now() - tPipeline;
 
-      if (failure) throw new Error(file.name + ' : ' + (failure.message || failure));
+      if (failure) {
+        throw new Error(
+          (failure.message || failure) +
+          ' [paquets ' + chunks.length + ', décodées ' + decoded +
+          ', dessinées ' + drawn + ', encodées ' + encoded + ']'
+        );
+      }
+      if (encoded === 0) {
+        throw new Error(
+          'aucune image encodée — la chaîne s’est arrêtée en silence' +
+          ' [paquets ' + chunks.length + ', décodées ' + decoded +
+          ', dessinées ' + drawn + ', VideoFrame depuis canvas: ' +
+          (frameFromCanvasWorks === null ? 'jamais tenté' : frameFromCanvasWorks) + ']'
+        );
+      }
       return true;
     }
   );

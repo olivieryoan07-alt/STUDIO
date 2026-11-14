@@ -1,5 +1,5 @@
 // Cache du socle. Liste en dur : pas d'etape de compilation dans ce projet.
-const CACHE = 'studio-v0.4.0';
+const CACHE = 'studio-v0.5.0';
 const SHELL = [
   './',
   './index.html',
