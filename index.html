@@ -125,7 +125,7 @@
   import { shareVideo } from './src/probe/share.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.7.0';
+  window.STUDIO_VERSION = '0.8.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -266,8 +266,8 @@
       ).join('');
       $('estat').className = r.ok ? 'status' : 'status err';
       $('estat').textContent = r.ok
-        ? 'l’encodeur fonctionne avec ' + r.codec + ' (' + r.options + ')'
-        : 'aucune combinaison ne produit de paquet — ' + r.reason;
+        ? 'l’encodeur tient : ' + r.codec + ' — ' + r.reason
+        : (r.codec ? r.codec + ' — ' : '') + r.reason;
     } catch (err) {
       $('estat').className = 'status err';
       $('estat').textContent = err.message;

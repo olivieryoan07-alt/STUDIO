@@ -13,10 +13,12 @@ const CODECS = ['avc1.640034', 'avc1.64002a', 'avc1.640028', 'avc1.42001f'];
 const W = 1080;
 const H = 1920;
 
-async function tryOne(codec, fps, extra) {
+async function tryOne(codec, fps, extra, frames = 3) {
   const attempt = {
     codec,
-    options: extra.latencyMode ? 'latencyMode=' + extra.latencyMode : 'sans latencyMode',
+    frames,
+    options: (extra.latencyMode ? 'latencyMode=' + extra.latencyMode : 'sans latencyMode') +
+             ', ' + frames + ' images',
     supported: null,
     chunks: 0,
     afterFlush: 0,
@@ -48,14 +50,18 @@ async function tryOne(codec, fps, extra) {
 
   try {
     enc.configure(config);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < frames; i++) {
       ctx.fillStyle = i % 2 ? '#e9a640' : '#10131a';
       ctx.fillRect(0, 0, W, H);
       const frame = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / fps) });
       try {
-        enc.encode(frame, { keyFrame: i === 0 });
+        enc.encode(frame, { keyFrame: i % fps === 0 });
       } finally {
         frame.close();
+      }
+      // contre-pression, comme dans roundTrip
+      while (enc.encodeQueueSize > 8) {
+        await new Promise((r) => setTimeout(r, 0));
       }
     }
     await enc.flush();
@@ -85,15 +91,35 @@ export async function encoderSelfTest(fps = 30) {
   }
 
   const tried = [];
-  // d'abord avec latencyMode (ce que fait roundTrip), puis sans
+  let working = null;
+
+  // 1. quelle combinaison produit quelque chose sur 3 images
   for (const extra of [{ latencyMode: 'quality' }, {}]) {
     for (const codec of CODECS) {
-      const a = await tryOne(codec, fps, extra);
+      const a = await tryOne(codec, fps, extra, 3);
       tried.push(a);
-      if (a.chunks > 0) {
-        return { ok: true, codec, options: a.options, tried, fps };
-      }
+      if (a.chunks > 0) { working = { codec, extra }; break; }
     }
+    if (working) break;
   }
-  return { ok: false, tried, fps, reason: 'aucune combinaison n’a produit de paquet' };
+
+  if (!working) {
+    return { ok: false, tried, fps, reason: 'aucune combinaison n’a produit de paquet' };
+  }
+
+  // 2. la meme combinaison tient-elle le volume reel ? (178 images mesurees
+  //    sur 5 s de source le 2026-11-14, pour zero paquet encode)
+  const volume = await tryOne(working.codec, fps, working.extra, 180);
+  tried.push(volume);
+
+  return {
+    ok: volume.chunks > 0,
+    codec: working.codec,
+    options: volume.options,
+    tried,
+    fps,
+    reason: volume.chunks > 0
+      ? 'tient aussi le volume'
+      : 'marche sur 3 images mais rend ' + volume.chunks + ' paquet(s) sur 180 — c’est le volume, pas le codec'
+  };
 }
