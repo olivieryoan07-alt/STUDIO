@@ -1,5 +1,5 @@
 // Cache du socle. Liste en dur : pas d'etape de compilation dans ce projet.
-const CACHE = 'studio-v0.3.0';
+const CACHE = 'studio-v0.4.0';
 const SHELL = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const SHELL = [
   './src/probe/share.js',
   './src/core/crop.js',
   './src/core/with-resources.js',
+  './src/core/draw-plan.js',
   './vendor/mp4-muxer.js'
 ];
 

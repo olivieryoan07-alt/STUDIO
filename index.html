@@ -119,7 +119,7 @@
   import { roundTrip } from './src/probe/roundtrip.js';
   import { shareVideo } from './src/probe/share.js';
 
-  window.STUDIO_VERSION = '0.3.0';
+  window.STUDIO_VERSION = '0.4.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -219,6 +219,8 @@
       $('rres').innerHTML =
         row('Source', r.source) +
         row('Recadrage', r.crop.sw + '×' + r.crop.sh + ' @ ' + r.crop.sx + ',' + r.crop.sy) +
+        row('Réduction de définition', chip(!r.downscale, r.downscale ? 'oui' : 'non')) +
+        row('Cadence de sortie', r.fps + ' img/s') +
         row('Codec de sortie', r.codec) +
         row('Images encodées', r.frames) +
         row('Démuxage', r.msDemux + ' ms') +

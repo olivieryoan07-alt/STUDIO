@@ -17,7 +17,7 @@ function bitDepthFromCodec(codec) {
 }
 
 // La matrice de transformation est en virgule fixe 16.16.
-function rotationFromMatrix(matrix) {
+export function rotationFromMatrix(matrix) {
   if (!matrix || matrix.length < 5) return 0;
   const a = matrix[0] / 65536;
   const b = matrix[1] / 65536;

@@ -11,40 +11,45 @@
 //     est prete, jamais quand la montre le dit. C'est ce qui elimine les
 //     saccades constatees avec MediaRecorder.
 
-import { cropRect } from '../core/crop.js';
+import { drawPlan } from '../core/draw-plan.js';
 import { withResources } from '../core/with-resources.js';
+import { rotationFromMatrix } from './inspect.js';
 import { Muxer, ArrayBufferTarget } from '../../vendor/mp4-muxer.js';
 
 export const OUT_W = 1080;
 export const OUT_H = 1920;
+// Cadence de repli seulement : la vraie valeur est lue sur la source.
 export const OUT_FPS = 60;
 
 const CHUNK = 1 << 20;
-const FRAME_US = 1e6 / OUT_FPS;
 
 // Du plus capable au plus modeste : il faut au moins le niveau 4.2 pour
 // 1080x1920 a 60 img/s.
 const CODEC_CANDIDATES = ['avc1.640034', 'avc1.64002a', 'avc1.640028'];
 
-async function pickVideoCodec() {
+async function pickVideoCodec(fps) {
   for (const codec of CODEC_CANDIDATES) {
     try {
       const r = await VideoEncoder.isConfigSupported({
-        codec, width: OUT_W, height: OUT_H, framerate: OUT_FPS, bitrate: 12_000_000
+        codec, width: OUT_W, height: OUT_H, framerate: fps, bitrate: 12_000_000
       });
       if (r && r.supported) return codec;
     } catch (_) { /* refus = mesure, pas erreur */ }
   }
-  throw new Error('aucun codec H.264 accepté en ' + OUT_W + 'x' + OUT_H + ' à ' + OUT_FPS + ' img/s');
+  throw new Error('aucun codec H.264 accepté en ' + OUT_W + 'x' + OUT_H + ' à ' + fps + ' img/s');
 }
 
+// mp4box.all.min.js n'expose que MP4Box.createFile ; DataStream est un global
+// distinct. Chercher MP4Box.DataStream plantait toute la chaine (mesure du
+// 2026-11-14 sur iPhone : "undefined is not an object").
 function descriptionFor(mp4, trackId) {
-  const MP4Box = globalThis.MP4Box;
+  const DataStream = globalThis.DataStream;
+  if (!DataStream) throw new Error('DataStream (mp4box) introuvable');
   const trak = mp4.getTrackById(trackId);
   for (const entry of trak.mdia.minf.stbl.stsd.entries) {
     const box = entry.avcC || entry.hvcC || entry.vpcC || entry.av1C;
     if (box) {
-      const stream = new MP4Box.DataStream(undefined, 0, MP4Box.DataStream.BIG_ENDIAN);
+      const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN);
       box.write(stream);
       return new Uint8Array(stream.buffer, 8); // on retire l'en-tete de boite
     }
@@ -122,16 +127,26 @@ export async function roundTrip(file, opts = {}) {
 
   const srcW = track.video ? track.video.width : track.track_width;
   const srcH = track.video ? track.video.height : track.track_height;
-  const rect = cropRect(srcW, srcH, OUT_W, OUT_H);
 
-  const codec = await pickVideoCodec();
+  // La cadence de sortie suit la source : la conception exige une copie, pas
+  // une conversion. Mesure du 2026-11-14 : la source reelle est a 30 img/s,
+  // pas 60 — forcer 60 aurait duplique une image sur deux.
+  const srcDur = track.duration / track.timescale;
+  const fps = Math.min(120, Math.max(1, Math.round(srcDur > 0 ? track.nb_samples / srcDur : OUT_FPS)));
+  const frameUs = 1e6 / fps;
+
+  const rotation = rotationFromMatrix(track.matrix);
+  const plan = drawPlan(srcW, srcH, rotation, OUT_W, OUT_H);
+  const rect = plan.crop;
+
+  const codec = await pickVideoCodec(fps);
   const canvas = new OffscreenCanvas(OUT_W, OUT_H);
   const ctx = canvas.getContext('2d', { alpha: false });
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
-    video: { codec: 'avc', width: OUT_W, height: OUT_H, frameRate: OUT_FPS },
+    video: { codec: 'avc', width: OUT_W, height: OUT_H, frameRate: fps },
     fastStart: 'in-memory'
   });
 
@@ -159,13 +174,21 @@ export async function roundTrip(file, opts = {}) {
       () => new VideoDecoder({
         output: (frame) => {
           try {
-            ctx.drawImage(frame, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, OUT_W, OUT_H);
+            ctx.save();
+            ctx.translate(OUT_W / 2, OUT_H / 2);
+            if (plan.radians) ctx.rotate(plan.radians);
+            ctx.drawImage(
+              frame,
+              rect.sx, rect.sy, rect.sw, rect.sh,
+              -plan.drawW / 2, -plan.drawH / 2, plan.drawW, plan.drawH
+            );
+            ctx.restore();
           } finally {
             frame.close();
           }
-          const out = new VideoFrame(canvas, { timestamp: Math.round(drawn * FRAME_US) });
+          const out = new VideoFrame(canvas, { timestamp: Math.round(drawn * frameUs) });
           try {
-            encoder.encode(out, { keyFrame: drawn % OUT_FPS === 0 });
+            encoder.encode(out, { keyFrame: drawn % fps === 0 });
           } finally {
             out.close();
           }
@@ -183,7 +206,7 @@ export async function roundTrip(file, opts = {}) {
       encoder = madeEncoder;
 
       encoder.configure({
-        codec, width: OUT_W, height: OUT_H, framerate: OUT_FPS,
+        codec, width: OUT_W, height: OUT_H, framerate: fps,
         bitrate: 12_000_000, latencyMode: 'quality'
       });
       decoder.configure({
@@ -221,7 +244,10 @@ export async function roundTrip(file, opts = {}) {
     blob,
     ok: result === true,
     codec,
-    source: srcW + '×' + srcH,
+    source: srcW + '×' + srcH + ' @ ' + fps + ' img/s, rotation ' + rotation + '°',
+    fps,
+    rotation,
+    downscale: plan.downscale,
     crop: rect,
     frames: drawn,
     encodedChunks: encoded,
