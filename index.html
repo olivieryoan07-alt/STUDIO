@@ -80,6 +80,8 @@
     <h2>01 · Ce que le navigateur sait faire</h2>
     <table id="caps"><tr><td>mesure…</td><td></td></tr></table>
     <p id="net"></p>
+    <p id="sw" style="font-family:var(--mono);font-size:11.5px;color:var(--dimmer);margin-top:2px">
+      hors ligne : enregistrement…</p>
   </section>
 
   <section class="card">
@@ -123,7 +125,7 @@
   import { shareVideo } from './src/probe/share.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.6.0';
+  window.STUDIO_VERSION = '0.7.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -287,8 +289,26 @@
       : r.reason;
   });
 
+  // Enregistrement en module, cache HTTP du script desactive, et rechargement
+  // automatique quand une nouvelle version prend la main. Sans ca, l'app
+  // restait bloquee sur une vieille version (constate le 2026-11-14).
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+
+    navigator.serviceWorker.register('sw.js', { type: 'module', updateViaCache: 'none' })
+      .then((reg) => {
+        reg.update();
+        $('sw').textContent = 'hors ligne : prêt';
+      })
+      .catch((err) => {
+        $('sw').textContent = 'hors ligne indisponible : ' + err.message;
+        $('sw').style.color = 'var(--rouge)';
+      });
   }
 </script>
 </body>
