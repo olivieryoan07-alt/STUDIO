@@ -31,6 +31,7 @@
     await import('./harness.test.js');
     await import('./track-summary.test.js');
     await import('./inspect.test.js');
+    await import('./crop.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
