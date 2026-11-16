@@ -75,6 +75,8 @@ export async function encodeAac(buffer, onProgress = () => {}) {
   let meta = null;
   let nextTs = 0;              // repli si Safari n'horodate pas
   let tsMissing = 0;
+  let adts = 0;
+  let firstBytes = null;
   const FRAME_US = Math.round(1024 / sr * 1e6);
 
   const enc = new AudioEncoder({
@@ -94,7 +96,21 @@ export async function encodeAac(buffer, onProgress = () => {}) {
         : FRAME_US;
       nextTs = ts + dur;
 
-      chunks.push({ data, type: chunk.type, timestamp: ts, duration: dur });
+      // Un mp4 veut de l'AAC brut. Safari peut emettre des trames ADTS,
+      // reconnaissables a leur syncword 0xFFF : le fichier reste valide et
+      // reste muet. On mesure, on signale, et on retire l'en-tete si besoin.
+      let payload = data;
+      if (data.length > 7 && data[0] === 0xFF && (data[1] & 0xF6) === 0xF0) {
+        adts++;
+        const crcAbsent = (data[1] & 0x01) === 1;
+        payload = data.subarray(crcAbsent ? 7 : 9);
+      }
+      if (firstBytes === null) {
+        firstBytes = Array.from(data.subarray(0, 4))
+          .map((b) => b.toString(16).padStart(2, '0')).join(' ');
+      }
+
+      chunks.push({ data: payload, type: chunk.type, timestamp: ts, duration: dur });
     },
     error: (e) => { failure = failure || e; }
   });
@@ -158,6 +174,11 @@ export async function encodeAac(buffer, onProgress = () => {}) {
   return {
     chunks, meta, sampleRate: sr, channels,
     hasMeta: !!(meta && meta.decoderConfig),
+    descBytes: meta && meta.decoderConfig && meta.decoderConfig.description
+      ? (meta.decoderConfig.description.byteLength || meta.decoderConfig.description.length || 0)
+      : 0,
+    adts,
+    firstBytes,
     tsMissing,
     spanSec: Math.round(spanSec * 100) / 100,
     sourceSec: Math.round(buffer.duration * 100) / 100,
