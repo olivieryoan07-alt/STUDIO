@@ -38,6 +38,7 @@
     await import('./cache-strategy.test.js');
     await import('./report.test.js');
     await import('./audio.test.js');
+    await import('./asc.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';

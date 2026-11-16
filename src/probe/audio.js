@@ -3,6 +3,8 @@
 //
 // §5.4 bis, tranche par l'utilisateur : entree franche, sortie en fondu court.
 
+import { extractAudioSpecificConfig } from '../core/asc.js';
+
 export async function loadAudio(file, ctx) {
   const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!AC) throw new Error('Web Audio indisponible');
@@ -171,8 +173,19 @@ export async function encodeAac(buffer, onProgress = () => {}) {
   const last = chunks[chunks.length - 1];
   const spanSec = (last.timestamp + last.duration) / 1e6;
 
+  // mp4-muxer insere `description` telle quelle comme DecoderSpecificInfo.
+  // Safari y met un esds complet : il faut en extraire l'AudioSpecificConfig,
+  // sinon on obtient un esds dans un esds et le fichier est muet.
+  const raw = meta && meta.decoderConfig ? meta.decoderConfig.description : null;
+  const asc = extractAudioSpecificConfig(raw);
+  const muxMeta = asc
+    ? { decoderConfig: { ...meta.decoderConfig, description: asc } }
+    : null; // sans config, mp4-muxer en genere une a partir du debit et des canaux
+
   return {
-    chunks, meta, sampleRate: sr, channels,
+    chunks, meta: muxMeta, sampleRate: sr, channels,
+    ascBytes: asc ? asc.byteLength : 0,
+    ascHex: asc ? Array.from(asc).map((b) => b.toString(16).padStart(2, '0')).join(' ') : '—',
     hasMeta: !!(meta && meta.decoderConfig),
     descBytes: meta && meta.decoderConfig && meta.decoderConfig.description
       ? (meta.decoderConfig.description.byteLength || meta.decoderConfig.description.length || 0)

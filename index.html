@@ -130,7 +130,7 @@
   import { loadAudio, audioExcerpt, encodeAac } from './src/probe/audio.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.16.0';
+  window.STUDIO_VERSION = '0.17.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -262,7 +262,10 @@
           ' · ' + (audio.sampleRate / 1000) + ' kHz · ' + audio.channels + ' canaux<br>' +
           'config décodeur ' + (audio.hasMeta ? 'fournie' : 'absente') +
           ' (' + audio.descBytes + ' o) · horodatages manquants ' + audio.tsMissing + '<br>' +
-          'premiers octets ' + audio.firstBytes + ' · trames ADTS ' + audio.adts +
+          'premiers octets ' + audio.firstBytes + ' · trames ADTS ' + audio.adts + '<br>' +
+          'AudioSpecificConfig ' + (audio.ascBytes
+            ? audio.ascBytes + ' o : ' + audio.ascHex
+            : 'non extraite — config devinée par le muxeur') +
           '</span>') : '') +
         row('Démuxage', r.msDemux + ' ms') +
         row('Décode + encode', r.msPipeline + ' ms') +
