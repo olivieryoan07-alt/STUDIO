@@ -103,15 +103,14 @@
   import { analyseTrack } from './src/probe/analyse-track.js';
   import { createBench } from './src/bench/click-track.js';
   import { drawEnvelope } from './src/bench/envelope-view.js';
-  import { loadAudio } from './src/probe/audio.js';
+  import { mmss } from './src/core/format.js';
 
-  window.STUDIO_VERSION = '0.20.0';
+  window.STUDIO_VERSION = '0.21.0';
   const $ = (id) => document.getElementById(id);
   $('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
   const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
-  const mmss = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 
   const AC = window.AudioContext || window.webkitAudioContext;
   let ctx = null;
@@ -128,7 +127,7 @@
 
     try {
       analysis = await analyseTrack(file, (p) => { $('stat').textContent = p.phase + '…'; });
-      buffer = await loadAudio(file);
+      buffer = analysis.buffer; // decode une seule fois
 
       const e2 = analysis.excerpt;
       $('res').innerHTML =
@@ -151,7 +150,9 @@
                 e2.beatCount + ' temps · rafale au ' + e2.burstBeatIndex + 'e</span>')
           : row('Extrait', chip(false, 'impossible') + '<br><span style="color:var(--rouge)">' +
                 analysis.excerptError + '</span>')) +
-        row('Analyse', analysis.msTotal + ' ms');
+        row('Analyse', analysis.msTotal + ' ms<br><span style="color:var(--dimmer)">' +
+            Object.entries(analysis.timings).map(([k, v]) => k + ' ' + v).join(' · ') +
+            '</span>');
 
       drawEnvelope($('plot'), analysis);
       $('stat').textContent = 'terminé — écoute, puis réponds aux trois questions.';

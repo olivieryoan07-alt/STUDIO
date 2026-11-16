@@ -88,3 +88,43 @@ test('la grille ne dérive pas sur la durée d’un morceau', () => {
          'dérive de ' + (derive * 1000).toFixed(0) + ' ms à 59 s (tempo détecté ' +
          t.bpm.toFixed(2) + ' pour ' + bpm + ')');
 });
+
+// REVUE FINALE 2026-11-16. Le test de derive ci-dessus mesure a 59 s, ou
+// l'erreur vaut 5-8 ms et le seuil de 30 ms passe avec 4x de marge. Or le
+// §5.4 bis parle d'« environ 700 temps », soit 5 minutes. A cette longueur la
+// derive mesuree atteint 36-44 ms. On contraint donc la PRECISION RELATIVE,
+// qui est ce qui gouverne la derive, au lieu de la mesurer sur un fixture
+// commodement court.
+
+test('la précision du tempo tient sur un morceau de cinq minutes', () => {
+  for (const bpm of [128.7, 143, 171.3]) {
+    const sig = drumTrack(60, 44100, bpm, 0);
+    const { env, rate } = onsetEnvelope(sig, 44100, {});
+    const t = detectTempo(env, rate);
+    const relatif = Math.abs(t.bpm - bpm) / bpm;
+    // 1e-4 => moins de 30 ms de derive sur 300 s
+    assert(relatif < 1e-4,
+           bpm + ' BPM : erreur relative ' + (relatif * 1e6).toFixed(0) +
+           ' ppm, soit ' + (relatif * 300 * 1000).toFixed(0) + ' ms sur 5 min');
+  }
+});
+
+test('les pics de l’enveloppe tombent sur les attaques, pas avant', () => {
+  // env[f] etait date au PREMIER echantillon de la trame, alors que la
+  // fenetre de Hann centre son energie au milieu : 10-13 ms d'avance
+  // systematique, un tiers du budget de 30 ms dilapide gratuitement.
+  const sr = 44100, bpm = 120, decalage = 0.137;
+  const sig = drumTrack(10, sr, bpm, decalage);
+  const { env, rate, offsetSec } = onsetEnvelope(sig, sr, {});
+  assert(typeof offsetSec === 'number', 'onsetEnvelope doit dater ses trames');
+
+  const max = Math.max(...env);
+  let premier = -1;
+  for (let i = 1; i < env.length - 1; i++) {
+    if (env[i] > max * 0.3 && env[i] >= env[i - 1] && env[i] > env[i + 1]) { premier = i; break; }
+  }
+  const t = premier / rate + offsetSec;
+  const attendu = Math.round((t - decalage) / (60 / bpm)) * (60 / bpm) + decalage;
+  assert(Math.abs(t - attendu) < 0.006,
+         'écart de ' + ((t - attendu) * 1000).toFixed(1) + ' ms');
+});

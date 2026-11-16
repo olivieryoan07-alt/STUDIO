@@ -37,3 +37,34 @@ test('un morceau plus court que l’extrait est refusé en nommant les durées',
   assert(msg.includes('10') && msg.includes('15'),
          'le message doit donner la durée du morceau et le minimum : ' + msg);
 });
+
+// REVUE FINALE 2026-11-16. Les tests ci-dessus passaient pour la mauvaise
+// raison : aucun ne regardait burstBeatIndex sur les chemins de recalage, et
+// aucun n'essayait une duree entre 15 et 25 s — le cas difficile.
+
+test('la rafale est recalculée quand l’extrait est décalé', () => {
+  const g = grille(140);
+  for (const climaxSec of [3, 10, 299]) {
+    const r = anchorExcerpt({ durationSec: 300, grid: g, climaxSec });
+    const place = r.startSec + r.burstBeatIndex * g.beatSec;
+    const vise = Math.max(r.startSec, Math.min(climaxSec, r.startSec + r.durSec));
+    assert(Math.abs(place - vise) <= g.beatSec,
+           'culminant ' + climaxSec + ' s : rafale placée à ' + place.toFixed(1) +
+           ' s au lieu de ' + vise.toFixed(1));
+  }
+});
+
+test('la rafale reste dans l’extrait et la durée minimale est tenue', () => {
+  for (const bpm of [60, 90, 140, 170, 190]) {
+    for (const durationSec of [15, 16, 18, 20, 25, 300]) {
+      let r;
+      try { r = anchorExcerpt({ durationSec, grid: grille(bpm), climaxSec: durationSec / 2 }); }
+      catch (e) { continue; } // un refus explicite est une reponse valable
+      const quoi = bpm + ' BPM / ' + durationSec + ' s : ';
+      assert(r.burstBeatIndex < r.beatCount,
+             quoi + 'rafale au temps ' + r.burstBeatIndex + ' pour ' + r.beatCount + ' temps');
+      assert(r.durSec >= 15 - 1e-6, quoi + 'extrait de ' + r.durSec.toFixed(2) + ' s');
+      assert(r.startSec + r.durSec <= durationSec + 1e-6, quoi + 'dépasse la fin');
+    }
+  }
+});

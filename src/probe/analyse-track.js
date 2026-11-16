@@ -12,8 +12,15 @@ import { anchorExcerpt } from '../core/excerpt.js';
 
 export async function analyseTrack(file, onProgress = () => {}) {
   const t = {};
+  // Une vraie pause de tache entre les phases. Sans elle, tout s'enchaine en
+  // microtaches : le navigateur n'a aucune occasion de peindre, l'utilisateur
+  // voit « decodage… » fige pendant plusieurs secondes, puis « termine » —
+  // exactement l'anti-objectif 5 (« attente sans progression visible »).
+  const respirer = () => new Promise((r) => setTimeout(r, 0));
+
   const chrono = async (nom, fn) => {
     onProgress({ phase: nom });
+    await respirer();
     const t0 = performance.now();
     const r = await fn();
     t[nom] = Math.round(performance.now() - t0);
@@ -26,12 +33,12 @@ export async function analyseTrack(file, onProgress = () => {}) {
   for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
 
   const mono = await chrono('mono', async () => toMono(channels));
-  const { env, rate } = await chrono('enveloppe', async () =>
+  const { env, rate, offsetSec } = await chrono('enveloppe', async () =>
     onsetEnvelope(mono, buffer.sampleRate, {}));
   const tempo = await chrono('tempo', async () => detectTempo(env, rate));
-  const grid = await chrono('grille', async () => beatGrid(env, rate, tempo.bpm));
-  const climax = await chrono('point culminant', async () => findClimax(env, rate));
-  const struct = await chrono('sections', async () => sections(env, rate));
+  const grid = await chrono('grille', async () => beatGrid(env, rate, tempo.bpm, offsetSec));
+  const climax = await chrono('point culminant', async () => findClimax(env, rate, offsetSec));
+  const struct = await chrono('sections', async () => sections(env, rate, 2, offsetSec));
 
   let excerpt = null;
   let excerptError = null;
@@ -43,6 +50,10 @@ export async function analyseTrack(file, onProgress = () => {}) {
   }
 
   return {
+    // rendu a l'appelant : le banc decodait le fichier une seconde fois,
+    // doublant l'attente et gardant deux AudioBuffer vivants (~184 Mo pour un
+    // morceau de 4 min) sur un iPhone 12 mini.
+    buffer,
     durationSec: buffer.duration,
     sampleRate: buffer.sampleRate,
     channels: buffer.numberOfChannels,
@@ -55,6 +66,7 @@ export async function analyseTrack(file, onProgress = () => {}) {
     excerptError,
     env,
     rate,
+    offsetSec,
     timings: t,
     msTotal: Object.values(t).reduce((a, b) => a + b, 0)
   };

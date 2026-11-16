@@ -31,31 +31,31 @@ export function anchorExcerpt({ durationSec, grid, climaxSec }) {
 
   const minBeats = Math.ceil(MIN_SEC / beatSec);
   const maxBeats = Math.floor(MAX_SEC / beatSec);
-  const full = OPENING + RISE + BODY + BURST + OUTRO; // 50
-  let beatCount = Math.min(Math.max(full, minBeats), maxBeats);
+  const maxByDuration = Math.floor(durationSec / beatSec);
 
-  // l'extrait ne peut pas depasser le morceau
-  beatCount = Math.min(beatCount, Math.floor(durationSec / beatSec));
-
-  // retirer d'abord dans le corps, ensuite dans la sortie
-  let body = BODY;
-  let outro = OUTRO;
-  let surplus = full - beatCount;
-  if (surplus > 0) {
-    const fromBody = Math.min(surplus, BODY);
-    body -= fromBody;
-    surplus -= fromBody;
-    outro = Math.max(0, OUTRO - surplus);
-  } else if (surplus < 0) {
-    body += -surplus; // allonger le corps quand le tempo est tres rapide
+  // Refus explicite plutot qu'extrait tronque en silence : a 170-190 BPM sur
+  // un morceau de 15 s, l'ancienne version rendait 14,8 s en passant sous son
+  // propre plancher (revue 2026-11-16).
+  if (maxByDuration < minBeats) {
+    throw new Error(
+      'le morceau dure ' + durationSec.toFixed(1) + ' s : impossible d’en tirer ' +
+      MIN_SEC + ' s de temps entiers à ' + (60 / beatSec).toFixed(0) + ' BPM'
+    );
   }
 
-  const burstBeatIndex = OPENING + RISE + body;
+  const full = OPENING + RISE + BODY + BURST + OUTRO; // 50
+  const beatCount = Math.min(Math.max(full, minBeats), maxBeats, maxByDuration);
   const durSec = beatCount * beatSec;
 
-  let startSec = climaxSec - burstBeatIndex * beatSec;
+  let startSec = climaxSec - (OPENING + RISE + BODY) * beatSec;
   if (startSec < 0) startSec = 0;
   if (startSec + durSec > durationSec) startSec = Math.max(0, durationSec - durSec);
+
+  // La rafale suit le point culminant REEL, pas la mise en page theorique.
+  // Sans ce recalcul, un extrait recale annoncait toujours « 38e temps » et
+  // posait la rafale jusqu'a 13 s du drop (revue 2026-11-16).
+  let burstBeatIndex = Math.round((climaxSec - startSec) / beatSec);
+  burstBeatIndex = Math.max(0, Math.min(beatCount - 1, burstBeatIndex));
 
   return { startSec, durSec, beatCount, burstBeatIndex };
 }

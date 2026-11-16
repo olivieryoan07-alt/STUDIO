@@ -40,3 +40,32 @@ test('les sections suivent les paliers d’énergie', () => {
   assert(s.length >= 3, 'trois paliers attendus, obtenu ' + s.length);
   assert(Math.abs(s[1].startSec - 10) < 2, 'frontière vers 10 s, obtenu ' + s[1].startSec);
 });
+
+// REVUE FINALE 2026-11-16. Trois defauts mesures par le relecteur, chacun
+// invisible pour les fixtures a UN SEUL palier utilisees plus haut : la regle
+// « le plus grand saut » ne peut pas se tester avec un seul saut, puisque
+// n'importe quelle implementation qui trouve *un* saut passe.
+
+test('le point culminant résiste à une intro calme', () => {
+  // structure metal canonique : intro propre, entree du groupe, drop plus tard
+  const env = palier(200, (t) => (t < 20 ? 0.03 : t < 150 ? 0.45 : 1.0));
+  const c = findClimax(env, RATE);
+  assert(Math.abs(c.timeSec - 150) < 3,
+         'attendu ~150 s (le drop), obtenu ' + c.timeSec.toFixed(1) + ' s');
+});
+
+test('un fondu d’entrée ne devient pas le point culminant', () => {
+  const env = palier(150, (t) => (t < 8 ? (t / 8) * 0.5 : t < 90 ? 0.5 : 1.0));
+  const c = findClimax(env, RATE);
+  assert(Math.abs(c.timeSec - 90) < 3,
+         'attendu ~90 s, obtenu ' + c.timeSec.toFixed(1) + ' s');
+});
+
+test('le point culminant n’est pas en retard sur le saut', () => {
+  // le lissage est une moyenne glissante CAUSALE : sans compensation, le
+  // sommet est systematiquement ~700 ms trop tard. Grossierement audible.
+  const env = palier(40, (t) => (t < 20 ? 0.2 : 1.0));
+  const c = findClimax(env, RATE);
+  assert(Math.abs(c.timeSec - 20) < 0.25,
+         'décalage de ' + ((c.timeSec - 20) * 1000).toFixed(0) + ' ms');
+});

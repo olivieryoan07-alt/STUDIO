@@ -25,6 +25,12 @@ export function detectTempo(env, rate) {
   const cen = centred(env);
   const minLag = Math.max(1, Math.round((rate * 60) / BPM_MAX));
   const maxLag = Math.min(cen.length - 1, Math.round((rate * 60) / BPM_MIN));
+  if (maxLag < minLag) {
+    throw new Error(
+      'extrait trop court pour mesurer un tempo : ' +
+      (env.length / rate).toFixed(2) + ' s'
+    );
+  }
 
   // on garde tous les scores : l'affinage du pic en a besoin
   const scores = new Float64Array(maxLag - minLag + 1);
@@ -85,31 +91,48 @@ function combScore(cen, period) {
   let best = -Infinity;
   for (let s = 0; s < steps; s++) {
     let acc = 0;
-    for (let p = s; p < cen.length; p += period) {
-      const i = Math.round(p);
-      if (i < cen.length) acc += cen[i];
+    let dents = 0;
+    for (let p = s; p < cen.length - 1; p += period) {
+      // interpolation lineaire, et c'est ce qui rend l'affinage possible :
+      // avec Math.round(), le score ne bouge qu'au basculement d'un arrondi,
+      // donc il est constant par morceaux et son optimum est un plateau.
+      // Impossible d'y lire un tempo a mieux que 1e-4 (revue 2026-11-16).
+      const i = Math.floor(p);
+      const f = p - i;
+      acc += cen[i] * (1 - f) + cen[i + 1] * f;
+      dents++;
     }
-    if (acc > best) best = acc;
+    // normalise : sans cela une periode plus courte gagne des dents, donc un
+    // bonus systematique sans rapport avec la justesse du tempo
+    const score = dents ? acc / dents : 0;
+    if (score > best) best = score;
   }
   return best;
 }
 
+// Deux passes. Une seule passe a 3e-4 laissait ~1,25e-4 d'erreur relative,
+// soit 38 ms de derive sur cinq minutes — le §5.4 bis parle de « 700 temps »,
+// donc cinq minutes est la vraie longueur, pas les 60 s du fixture initial.
 function refineByComb(cen, rate, bpm) {
-  const base = (60 / bpm) * rate;
-  let bestPeriod = base;
-  let bestScore = -Infinity;
-  // +/- 3 %, par pas de 0,03 % : largement sous le seuil audible
-  for (let k = -100; k <= 100; k++) {
-    const period = base * (1 + k * 0.0003);
-    const score = combScore(cen, period);
-    if (score > bestScore) { bestScore = score; bestPeriod = period; }
+  let period = (60 / bpm) * rate;
+  for (const [etendue, pas] of [[0.03, 0.0003], [0.0004, 0.00001]]) {
+    const base = period;
+    let best = period;
+    let bestScore = -Infinity;
+    const n = Math.round(etendue / pas);
+    for (let k = -n; k <= n; k++) {
+      const p = base * (1 + k * pas);
+      const score = combScore(cen, p);
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    period = best;
   }
-  return (60 * rate) / bestPeriod;
+  return (60 * rate) / period;
 }
 
 // Correle l'enveloppe avec un peigne d'impulsions a la periode trouvee et
 // retient le decalage qui ramasse le plus d'energie.
-export function beatGrid(env, rate, bpm) {
+export function beatGrid(env, rate, bpm, offsetSec = 0) {
   const beatSec = 60 / bpm;
   const period = beatSec * rate;
   const steps = Math.max(1, Math.round(period));
@@ -126,10 +149,10 @@ export function beatGrid(env, rate, bpm) {
     if (acc > bestScore) { bestScore = acc; bestOffset = s; }
   }
 
-  const offsetSec = bestOffset / rate;
-  const total = env.length / rate;
+  const phase = bestOffset / rate + offsetSec;
+  const total = env.length / rate + offsetSec;
   const beats = [];
-  for (let t = offsetSec; t < total; t += beatSec) beats.push(t);
+  for (let t = phase; t < total; t += beatSec) beats.push(t);
 
-  return { beatSec, offsetSec, beats: Float64Array.from(beats) };
+  return { beatSec, offsetSec: phase, beats: Float64Array.from(beats) };
 }
