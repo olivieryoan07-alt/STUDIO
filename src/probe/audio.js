@@ -73,21 +73,28 @@ export async function encodeAac(buffer, onProgress = () => {}) {
   const chunks = [];
   let failure = null;
   let meta = null;
+  let nextTs = 0;              // repli si Safari n'horodate pas
+  let tsMissing = 0;
+  const FRAME_US = Math.round(1024 / sr * 1e6);
 
   const enc = new AudioEncoder({
     output: (chunk, m) => {
       if (!meta && m && m.decoderConfig) meta = m;
       const data = new Uint8Array(chunk.byteLength);
       chunk.copyTo(data);
-      chunks.push({
-        data,
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        // meme piege que la video : Safari ne renseigne pas toujours duration
-        duration: Number.isFinite(chunk.duration) && chunk.duration >= 0
-          ? chunk.duration
-          : Math.round(1024 / sr * 1e6)
-      });
+
+      // Meme piege que la video, et il frappe DEUX champs. Sans ce repli,
+      // Math.round(null) vaut 0 : les paquets s'empilent tous a l'instant 0,
+      // la piste dure zero seconde et le fichier est muet (mesure 2026-11-16).
+      const hasTs = Number.isFinite(chunk.timestamp);
+      if (!hasTs) tsMissing++;
+      const ts = hasTs ? chunk.timestamp : nextTs;
+      const dur = Number.isFinite(chunk.duration) && chunk.duration > 0
+        ? chunk.duration
+        : FRAME_US;
+      nextTs = ts + dur;
+
+      chunks.push({ data, type: chunk.type, timestamp: ts, duration: dur });
     },
     error: (e) => { failure = failure || e; }
   });
@@ -135,5 +142,25 @@ export async function encodeAac(buffer, onProgress = () => {}) {
   if (failure) throw new Error('encodage AAC : ' + (failure.message || failure));
   if (!chunks.length) throw new Error('encodage AAC : aucun paquet produit');
 
-  return { chunks, meta, sampleRate: sr, channels };
+  // De quoi juger le resultat sans deviner : y a-t-il du signal, les paquets
+  // sont-ils etales dans le temps, Safari a-t-il fourni la config decodeur ?
+  let peak = 0;
+  for (let c = 0; c < channels; c++) {
+    const d = buffer.getChannelData(c);
+    for (let i = 0; i < d.length; i += 97) {
+      const v = Math.abs(d[i]);
+      if (v > peak) peak = v;
+    }
+  }
+  const last = chunks[chunks.length - 1];
+  const spanSec = (last.timestamp + last.duration) / 1e6;
+
+  return {
+    chunks, meta, sampleRate: sr, channels,
+    hasMeta: !!(meta && meta.decoderConfig),
+    tsMissing,
+    spanSec: Math.round(spanSec * 100) / 100,
+    sourceSec: Math.round(buffer.duration * 100) / 100,
+    peak: Math.round(peak * 1000) / 1000
+  };
 }
