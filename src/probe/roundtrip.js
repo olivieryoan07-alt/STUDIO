@@ -148,6 +148,13 @@ async function runPass(ctx) {
   const muxer = new Muxer({
     target,
     video: { codec: 'avc', width: OUT_W, height: OUT_H, frameRate: fps },
+    ...(ctx.audio ? {
+      audio: {
+        codec: 'aac',
+        sampleRate: ctx.audio.sampleRate,
+        numberOfChannels: ctx.audio.channels
+      }
+    } : {}),
     fastStart: 'in-memory'
   });
 
@@ -283,9 +290,18 @@ async function runPass(ctx) {
     };
   }
 
+  let audioChunks = 0;
+  if (ctx.audio) {
+    for (const a of ctx.audio.chunks) {
+      muxer.addAudioChunkRaw(a.data, a.type, Math.round(a.timestamp),
+                             Math.round(a.duration), ctx.audio.meta);
+      audioChunks++;
+    }
+  }
+
   muxer.finalize();
   return {
-    encoded, decoded, drawn, peak,
+    encoded, produced, decoded, drawn, peak, audioChunks,
     blob: new Blob([target.buffer], { type: 'video/mp4' })
   };
 }
@@ -293,6 +309,7 @@ async function runPass(ctx) {
 export async function roundTrip(file, opts = {}) {
   const seconds = opts.seconds ?? 5;
   const onProgress = opts.onProgress || (() => {});
+  const audio = opts.audio || null;
 
   onProgress({ phase: 'démuxage', done: 0, total: 1 });
   const tDemux = performance.now();
@@ -319,7 +336,7 @@ export async function roundTrip(file, opts = {}) {
     try {
       pass = await runPass({
         samples, description, track, plan, fps, codec, strategy,
-        onProgress, srcW, srcH
+        onProgress, srcW, srcH, audio
       });
     } catch (e) {
       pass = { encoded: 0, decoded: 0, drawn: 0, error: e.message || String(e) };
@@ -345,6 +362,7 @@ export async function roundTrip(file, opts = {}) {
         crop: plan.crop,
         frames: pass.drawn,
         encodedChunks: pass.encoded,
+        audioChunks: pass.audioChunks || 0,
         msDemux: Math.round(msDemux),
         msPipeline: Math.round(performance.now() - tPipeline),
         peakBytes: pass.peak || null

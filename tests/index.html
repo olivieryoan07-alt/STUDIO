@@ -36,6 +36,8 @@
     await import('./share.test.js');
     await import('./draw-plan.test.js');
     await import('./cache-strategy.test.js');
+    await import('./report.test.js');
+    await import('./audio.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';

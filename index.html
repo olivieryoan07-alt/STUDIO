@@ -96,6 +96,9 @@
   <section class="card">
     <h2>03 · Aller-retour complet — démux, décode, recadrage, encode, mux</h2>
     <p>Réencode en 1080×1920 à la cadence de la source, image par image, hors de toute horloge temps réel. Choisis d'abord une vidéo ci-dessus.</p>
+    <p style="margin:0 0 8px;color:var(--dim);font-size:13.5px">
+      Ajoute un mp3 pour que le montage ait du son : entrée franche, fondu de sortie de 0,4 s.</p>
+    <input type="file" id="afile" accept="audio/*,.mp3,.m4a,.wav">
     <div class="row">
       <button id="enctest">Tester l’encodeur seul</button>
       <button id="rt5" disabled>Réencoder 5 s</button>
@@ -123,9 +126,11 @@
   import { summariseTrack } from './src/core/track-summary.js';
   import { roundTrip } from './src/probe/roundtrip.js';
   import { shareVideo } from './src/probe/share.js';
+  import { msPerReel, buildReport } from './src/core/report.js';
+  import { loadAudio, audioExcerpt, encodeAac } from './src/probe/audio.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.12.0';
+  window.STUDIO_VERSION = '0.14.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -210,8 +215,20 @@
 
     const wall = performance.now();
     try {
+      let audio = null;
+      if (audioFile) {
+        $('rstat').textContent = 'décodage du son…';
+        const buf = await loadAudio(audioFile);
+        const take = Math.min(seconds, Math.max(0.5, buf.duration - 0.05));
+        const excerpt = audioExcerpt(buf, 0, take, 0.4);
+        $('rstat').textContent = 'encodage AAC…';
+        audio = await encodeAac(excerpt, (p) => {
+          $('rstat').textContent = 'encodage AAC ' + Math.round(p.done / p.total * 100) + ' %';
+        });
+      }
+
       const r = await roundTrip(chosen, {
-        seconds,
+        seconds, audio,
         onProgress: (p) => {
           $('rstat').textContent = p.total
             ? `${p.phase} ${p.done}/${p.total}`
@@ -219,6 +236,10 @@
         }
       });
       const total = Math.round(performance.now() - wall);
+      const reelMs = msPerReel(r.msPipeline, r.frames, r.fps, 20);
+      const verdict = buildReport({
+        share: true, aac: caps.audioAac, roundTrip: true, encodeMsPerReel: reelMs
+      });
       chosenBlob = r.blob;
       $('rout').src = URL.createObjectURL(r.blob);
 
@@ -232,14 +253,20 @@
         row('Codec de sortie', r.codec) +
         row('Stratégie retenue', '<span style="color:var(--amber)">' + r.strategy + '</span>') +
         row('Images encodées', r.frames) +
+        row('Paquets audio', r.audioChunks
+          ? r.audioChunks + ' ' + chip(true, 'son muxé')
+          : chip(false, 'muet')) +
         row('Démuxage', r.msDemux + ' ms') +
         row('Décode + encode', r.msPipeline + ' ms') +
-        row('Muxage', r.msMux + ' ms') +
         row('Total', total + ' ms') +
         row('Poids', (r.blob.size / 1048576).toFixed(2) + ' Mo') +
         row('Pic mémoire JS', r.peakBytes ? (r.peakBytes / 1048576).toFixed(0) + ' Mo' : 'non mesurable') +
-        row('×3 montages', Math.round(total * 3 / 1000) + ' s ' +
-            chip(total * 3 <= 120000, total * 3 <= 120000 ? 'dans le budget' : 'repli §5.5'));
+        row('Coût par image', (r.msPipeline / r.frames).toFixed(1) + ' ms') +
+        row('Un reel de 20 s', Math.round(reelMs / 1000) + ' s <span style="color:var(--dimmer)">('
+            + Math.round(20 * r.fps) + ' images)</span>') +
+        row('Trois montages', Math.round(verdict.totalMs / 1000) + ' s ' +
+            chip(verdict.verdict !== 'repli',
+                 verdict.verdict === 'repli' ? 'repli §5.5' : 'dans le budget'));
 
       $('rstat').textContent = 'terminé — lis la vidéo ci-dessous pour juger l’image.';
       $('shr').disabled = false;
@@ -277,6 +304,15 @@
     } finally {
       $('enctest').disabled = false;
     }
+  });
+
+  let audioFile = null;
+  $('afile').addEventListener('change', (e) => {
+    audioFile = e.target.files[0] || null;
+    $('rstat').className = 'status';
+    $('rstat').textContent = audioFile
+      ? 'son prêt : ' + audioFile.name + ' (' + (audioFile.size / 1048576).toFixed(1) + ' Mo)'
+      : '';
   });
 
   $('rt5').addEventListener('click', () => runRoundTrip(5));

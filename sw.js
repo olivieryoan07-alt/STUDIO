@@ -7,7 +7,7 @@
 
 import { cacheStrategy } from './src/core/cache-strategy.js';
 
-const VERSION = '0.12.0';
+const VERSION = '0.14.0';
 const CACHE = 'studio-' + VERSION;
 
 const SHELL = [
@@ -23,10 +23,12 @@ const SHELL = [
   './src/core/draw-plan.js',
   './src/core/with-resources.js',
   './src/core/cache-strategy.js',
+  './src/core/report.js',
   './src/probe/caps.js',
   './src/probe/inspect.js',
   './src/probe/roundtrip.js',
   './src/probe/share.js',
+  './src/probe/audio.js',
   './src/probe/encoder-selftest.js'
 ];
 
