@@ -45,3 +45,24 @@ test('un descripteur annonçant plus que sa taille est refusé', () => {
   // tag 05 annonce 200 octets alors qu'il n'en reste que 2
   assert(extractAudioSpecificConfig(new Uint8Array([0x05, 0xc8, 0x11, 0x90])) === null);
 });
+
+// Revue finale 2026-11-16 : le scan cherchait l'octet 0x05 n'importe ou dans
+// la description. Un maxBitrate ou un bufferSizeDB contenant 0x05 suivi d'une
+// longueur plausible etait pris pour l'AudioSpecificConfig — piste muette, et
+// un relevé qui a l'air juste. Il faut marcher les descripteurs.
+
+test('un 0x05 à l’intérieur du maxBitrate n’est pas pris pour la config', () => {
+  // DecoderConfigDescriptor dont maxBitrate vaut 0x00050200
+  const esds = new Uint8Array([
+    0x03, 0x19,
+    0x00, 0x01, 0x00,
+    0x04, 0x11,
+    0x40, 0x15, 0x00, 0x00, 0x00,
+    0x00, 0x05, 0x02, 0x00,          // maxBitrate contenant 05 02
+    0x00, 0x01, 0xf4, 0x00,          // avgBitrate
+    0x05, 0x02, 0x11, 0x90           // le vrai DecoderSpecificInfo
+  ]);
+  const out = extractAudioSpecificConfig(esds);
+  assert(out !== null, 'extraction échouée');
+  assert(hex(out) === '11 90', 'a pris le leurre : ' + hex(out));
+});

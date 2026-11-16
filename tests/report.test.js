@@ -44,3 +44,23 @@ test('le verdict porte les trois montages, pas un seul', () => {
   assert(r.verdict === 'repli', 'obtenu ' + r.verdict);
   assert(r.totalMs === 123000, 'totalMs doit valoir 3 x encodeMsPerReel');
 });
+
+// Revue finale 2026-11-16 : une mesure absente ne doit JAMAIS produire le
+// verdict optimiste. NaN est falsy, donc `(m.encodeMsPerReel || 0)` le
+// transformait en 0 s => "dans le budget" => 'go'. La fonction dont le role
+// est de dire "repli" repondait "go" sur une mesure manquante.
+
+test('une mesure non finie bloque au lieu de passer', () => {
+  assert(buildReport({ share: true, aac: true, roundTrip: true, encodeMsPerReel: NaN })
+    .verdict === 'bloque', 'NaN doit bloquer');
+  assert(buildReport({ share: true, aac: true, roundTrip: true, encodeMsPerReel: undefined })
+    .verdict === 'bloque', 'undefined doit bloquer');
+  assert(buildReport({ share: true, aac: true, roundTrip: true, encodeMsPerReel: 0 })
+    .verdict === 'bloque', 'zero seconde d encodage n est pas une mesure');
+});
+
+test('msPerReel refuse de rendre un nombre quand l’entrée n’en est pas un', () => {
+  assert(!Number.isFinite(msPerReel(7340, 0, 30, 20)), 'zero image : pas de mesure');
+  assert(!Number.isFinite(msPerReel(7340, 178, undefined, 20)), 'cadence absente');
+  assert(!Number.isFinite(msPerReel(NaN, 178, 30, 20)), 'temps absent');
+});

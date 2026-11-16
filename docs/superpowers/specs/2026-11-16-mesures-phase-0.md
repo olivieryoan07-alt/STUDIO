@@ -30,10 +30,20 @@ l'appareil cible. Aucun repli n'a été nécessaire.
 | HDR | **non** |
 | Marques | `qt` |
 
-**Conséquence majeure, et elle supprime un risque entier :** iOS transcode
-avant de remettre le fichier. Pas de HEVC à décoder, pas de Dolby Vision. Les
-seuils d'exposition du §5.2, mesurés sur un canvas 8 bits, restent donc
-valides — l'avertissement inscrit au §3 de la conception tombe.
+**iOS transcode avant de remettre le fichier** : pas de HEVC à décoder. C'est
+la bonne nouvelle, et elle est solide — le codec est lu dans le conteneur.
+
+> **Réserve ajoutée après relecture, et elle annule une conclusion.** La ligne
+> « HDR : non » a été produite par un code qui ne pouvait structurellement
+> dire autre chose : `transferCharacteristics` était codé en dur à chaîne vide
+> et la profondeur déduite du seul nom de codec, lequel ne la porte que pour
+> le HEVC. Pour un `avc1.*`, la réponse était « 8 bits, HDR non » **quelle que
+> soit la colorimétrie réelle du fichier**.
+>
+> La conclusion « l'avertissement du §3 tombe » était donc **prématurée**.
+> Le code lit désormais la boîte `colr` (transfert 16 = PQ, 18 = HLG) et dit
+> explicitement « colorimétrie non lue » quand la boîte est absente. **La
+> question 1 doit être remesurée** avant de clore le risque.
 
 En revanche la **rotation à 90°** est bien réelle : la source est stockée en
 paysage et redressée par métadonnée. Le moteur doit l'appliquer, sans quoi
@@ -97,10 +107,10 @@ sont consignées ici parce qu'elles disent où ne plus chercher.
 | Hypothèse | Verdict | Ce que la mesure a montré |
 |---|---|---|
 | Le codec `avc1.640034` n'est pas réellement supporté | **fausse** | l'encodeur seul : 180 paquets sur 180 |
-| `latencyMode: 'quality'` fait échouer `configure()` | **fausse** | aucune différence entre les 8 combinaisons |
+| `latencyMode: 'quality'` fait échouer `configure()` | **fausse** | l'auto-test v0.8.0 réussit dès la 1re combinaison, qui l'inclut |
 | Le volume (178 images) sature l'encodeur | **fausse** | 180 images encodées hors chaîne |
-| iOS refuse une session d'encodage matériel tant qu'un décodeur tourne | **fausse** | les 4 combinaisons matériel/logiciel donnent le même résultat |
-| Safari émet du H.264 en Annex B | **fausse** | métadonnées complètes, `decoderConfig` présent |
+| iOS refuse une session d'encodage matériel tant qu'un décodeur tourne | **fausse** | run v0.9.0 : les 4 combinaisons rendent 0 paquet, donc l'accélération n'y était pour rien |
+| Safari émet du H.264 en Annex B | **non tranchée** | `avc: { format: 'avc' }` a été forcé en v0.10.0 : l'hypothèse a été **contournée, pas réfutée**. Le réglage reste en place |
 | Safari n'horodate pas les paquets audio | **fausse** | `horodatages manquants : 0` |
 | Safari émet l'AAC en ADTS | **fausse** | `trames ADTS 0`, premiers octets `21 00 03 40` |
 
@@ -142,6 +152,13 @@ Quatre réserves, à lever en phase 1 plutôt qu'à oublier :
    extrapolées depuis 5 s réelles, en supposant un coût par image constant.
 4. **La matière de test est en 4K.** L'utilisateur passera au 1080p : quatre
    fois moins de pixels à décoder, donc un coût qui ne peut que baisser.
+5. **La colorimétrie n'a jamais été lue** (voir la réserve de la question 1).
+6. **Les chiffres ci-dessus datent de la v0.17.0.** La relecture finale a
+   corrigé le chronométrage (les passes ratées étaient facturées à la passe
+   gagnante, gonflant le coût par image), le verdict (`go` était calculé avec
+   `share: true` codé en dur, avant même la station 04) et plusieurs fuites.
+   **Les mesures sont à refaire en v0.19.0** : elles ne peuvent que baisser,
+   mais elles n'ont pas été reprises.
 
 ---
 

@@ -11,7 +11,13 @@ export async function capabilities() {
   const hasDecoder = typeof globalThis.VideoDecoder === 'function';
   const hasEncoder = typeof globalThis.VideoEncoder === 'function';
   const hasAudioEncoder = typeof globalThis.AudioEncoder === 'function';
-  const share = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function';
+  // Revue 2026-11-16 : tester l'existence de canShare ne dit rien des
+  // FICHIERS. On lui soumet un vrai fichier.
+  let share = false;
+  try {
+    const probe = new File([new Uint8Array([0])], 'sonde.mp4', { type: 'video/mp4' });
+    share = typeof navigator.canShare === 'function' && navigator.canShare({ files: [probe] });
+  } catch (_) { share = false; }
 
   const containers = [];
   if (hasEncoder) {

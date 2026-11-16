@@ -19,12 +19,20 @@ export function summariseTrack(config) {
   }
 
   const hdr = bitDepth >= 10 || transfer === 'pq' || transfer === 'hlg';
+  // « pas de colr lu » n'est pas « SDR ». Revue 2026-11-16.
+  const colourUnknown = config.colourKnown === false;
 
   const warnings = [];
   if (hdr) {
     warnings.push(
       "Source HDR (" + bitDepth + " bits" + (transfer ? ", " + transfer : "") + ") : " +
       "lus sur un canvas 8 bits, les seuils d'exposition du moteur ne mesurent plus ce qu'ils annoncent."
+    );
+  }
+  if (!hdr && colourUnknown) {
+    warnings.push(
+      "Colorimétrie non lue (pas de boîte colr) : l'absence de HDR n'est pas " +
+      "établie, et les seuils d'exposition reposent dessus."
     );
   }
   if (codecFamily === 'inconnu') {

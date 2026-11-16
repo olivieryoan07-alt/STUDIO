@@ -7,7 +7,7 @@
 
 import { cacheStrategy } from './src/core/cache-strategy.js';
 
-const VERSION = '0.17.0';
+const VERSION = '0.19.0';
 const CACHE = 'studio-' + VERSION;
 
 const SHELL = [
@@ -73,7 +73,13 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(req)
         .then((res) => keep(req, res))
-        .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
+        .catch(() => caches.match(req).then((hit) => {
+          if (hit) return hit;
+          // Ne JAMAIS servir index.html a la place d'un module : le navigateur
+          // refuserait le type MIME et la page resterait blanche, en silence.
+          if (req.mode === 'navigate') return caches.match('./index.html');
+          return new Response('hors ligne et absent du cache', { status: 504 });
+        }))
     );
     return;
   }

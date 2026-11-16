@@ -130,7 +130,7 @@
   import { loadAudio, audioExcerpt, encodeAac } from './src/probe/audio.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.17.0';
+  window.STUDIO_VERSION = '0.19.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
@@ -191,6 +191,9 @@
         .map((w) => `<div class="warn">${w}</div>`).join('');
       $('vstat').textContent = 'terminé.';
       chosen = file;
+      chosenBlob = null;
+      shareConfirmed = false;
+      $('shr').disabled = true;
       $('rt5').disabled = false;
       $('rt20').disabled = false;
     } catch (err) {
@@ -204,6 +207,8 @@
 
   // ---- 03 aller-retour complet ----
   let chosenBlob = null;
+  let chosenUrl = null;
+  let shareConfirmed = false;
 
   async function runRoundTrip(seconds) {
     $('rt5').disabled = true;
@@ -237,11 +242,15 @@
       });
       const total = Math.round(performance.now() - wall);
       const reelMs = msPerReel(r.msPipeline, r.frames, r.fps, 20);
+      // Le partage n'est PAS suppose : tant que la station 04 n'a pas reussi,
+      // il vaut `null` et le verdict reste 'bloque'. Revue 2026-11-16.
       const verdict = buildReport({
-        share: true, aac: caps.audioAac, roundTrip: true, encodeMsPerReel: reelMs
+        share: shareConfirmed, aac: caps.audioAac, roundTrip: true, encodeMsPerReel: reelMs
       });
+      if (chosenUrl) URL.revokeObjectURL(chosenUrl);
       chosenBlob = r.blob;
-      $('rout').src = URL.createObjectURL(r.blob);
+      chosenUrl = URL.createObjectURL(r.blob);
+      $('rout').src = chosenUrl;
 
       $('rres').innerHTML =
         row('Source', r.source) +
@@ -275,9 +284,16 @@
         row('Coût par image', (r.msPipeline / r.frames).toFixed(1) + ' ms') +
         row('Un reel de 20 s', Math.round(reelMs / 1000) + ' s <span style="color:var(--dimmer)">('
             + Math.round(20 * r.fps) + ' images)</span>') +
-        row('Trois montages', Math.round(verdict.totalMs / 1000) + ' s ' +
-            chip(verdict.verdict !== 'repli',
-                 verdict.verdict === 'repli' ? 'repli §5.5' : 'dans le budget'));
+        row('Trois montages', Number.isFinite(verdict.totalMs)
+            ? Math.round(verdict.totalMs / 1000) + ' s ' +
+              chip(verdict.verdict !== 'repli',
+                   verdict.verdict === 'repli' ? 'repli §5.5' : 'dans le budget')
+            : chip(false, 'non mesuré')) +
+        row('Verdict', verdict.verdict === 'go'
+            ? chip(true, 'go')
+            : chip(false, verdict.verdict) +
+              (shareConfirmed ? '' : '<br><span style="color:var(--dimmer)">partage non encore' +
+               ' confirmé — lance la station 04</span>'));
 
       $('rstat').textContent = 'terminé — lis la vidéo ci-dessous pour juger l’image.';
       $('shr').disabled = false;
@@ -334,6 +350,7 @@
     if (!chosenBlob) return;
     const r = await shareVideo(chosenBlob, 'studio-essai.mp4');
     $('sstat').className = r.ok ? 'status' : 'status err';
+    if (r.ok) shareConfirmed = true;
     $('sstat').textContent = r.ok
       ? 'feuille ouverte — « Enregistrer la vidéo » met le fichier dans Photos.'
       : r.reason;
@@ -342,7 +359,16 @@
   // Enregistrement en module, cache HTTP du script desactive, et rechargement
   // automatique quand une nouvelle version prend la main. Sans ca, l'app
   // restait bloquee sur une vieille version (constate le 2026-11-14).
-  if ('serviceWorker' in navigator) {
+  // En developpement local on n'enregistre PAS de service worker : il servirait
+  // les modules depuis son cache et la page de tests executerait du code
+  // perime. Piege rencontre le 2026-11-16, deux fois.
+  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+
+  if (isLocal) {
+    $('sw').textContent = 'hors ligne : désactivé en développement local';
+    navigator.serviceWorker?.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+    caches?.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
+  } else if ('serviceWorker' in navigator) {
     let reloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloading) return;

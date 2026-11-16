@@ -11,6 +11,8 @@
 // Les descripteurs MPEG-4 sont des triplets tag / longueur / contenu, la
 // longueur etant codee sur 1 a 4 octets dont le bit 0x80 marque la suite.
 
+const TAG_ES_DESCRIPTOR = 0x03;
+const TAG_DECODER_CONFIG = 0x04;
 const TAG_DECODER_SPECIFIC_INFO = 0x05;
 const MAX_ASC = 64;
 
@@ -42,15 +44,35 @@ export function extractAudioSpecificConfig(description) {
     if (objectType >= 1 && objectType <= 5) return bytes;
   }
 
-  for (let i = 0; i < bytes.length; i++) {
-    if (bytes[i] !== TAG_DECODER_SPECIFIC_INFO) continue;
-    const read = readLength(bytes, i + 1);
-    if (!read) continue;
-    const { len, next } = read;
-    // un descripteur qui annonce plus que ce qui reste est du bruit
-    if (len < 1 || len > MAX_ASC || next + len > bytes.length) continue;
-    return bytes.subarray(next, next + len);
+  // On MARCHE les descripteurs au lieu de chercher l'octet 0x05 au hasard :
+  // un maxBitrate valant 0x00050200 contient « 05 02 » et serait pris pour la
+  // config, rendant une piste muette avec un relevé d'apparence correcte.
+  // Revue du 2026-11-16.
+  let i = 0;
+
+  if (bytes[i] === TAG_ES_DESCRIPTOR) {
+    const head = readLength(bytes, i + 1);
+    if (!head) return null;
+    i = head.next + 2;                         // ES_ID sur 2 octets
+    const flags = bytes[i];
+    if (flags === undefined) return null;
+    i += 1;
+    if (flags & 0x80) i += 2;                  // streamDependenceFlag
+    if (flags & 0x40) i += 1 + (bytes[i] || 0); // URL_Flag : longueur + URL
+    if (flags & 0x20) i += 2;                  // OCRstreamFlag
   }
 
-  return null;
+  if (bytes[i] === TAG_DECODER_CONFIG) {
+    const head = readLength(bytes, i + 1);
+    if (!head) return null;
+    // objectType(1) streamType(1) bufferSizeDB(3) maxBitrate(4) avgBitrate(4)
+    i = head.next + 13;
+  }
+
+  if (bytes[i] !== TAG_DECODER_SPECIFIC_INFO) return null;
+  const read = readLength(bytes, i + 1);
+  if (!read) return null;
+  const { len, next } = read;
+  if (len < 1 || len > MAX_ASC || next + len > bytes.length) return null;
+  return bytes.subarray(next, next + len);
 }

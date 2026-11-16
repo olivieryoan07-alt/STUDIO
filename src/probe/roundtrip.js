@@ -55,7 +55,10 @@ function descriptionFor(mp4, trackId) {
       return new Uint8Array(stream.buffer, 8); // on retire l'en-tete de boite
     }
   }
-  return undefined;
+  throw new Error(
+    'configuration du décodeur introuvable (pas de boîte avcC/hvcC) : ' +
+    'sans elle le décodeur lit du vide sans jamais le signaler'
+  );
 }
 
 function demuxVideo(file, maxSeconds) {
@@ -102,6 +105,8 @@ function demuxVideo(file, maxSeconds) {
         offset += CHUNK;
       }
       try { mp4.flush(); } catch (_) { /* conteneur tronque */ }
+      // on garde nos propres copies : mp4box peut liberer les siennes
+      try { if (track) mp4.releaseUsedSamples(track.id, track.nb_samples); } catch (_) {}
       if (!track) { reject(new Error(file.name + ' : conteneur illisible')); return; }
       if (!samples.length) { reject(new Error(file.name + ' : aucune image extraite')); return; }
       resolve({ samples, description, track });
@@ -182,7 +187,9 @@ async function runPass(ctx) {
             // permet pas de la fournir : son 4e argument est
             // compositionTimeOffset, pas la duree. Il faut donc passer par
             // addVideoChunkRaw(data, type, timestamp, duration, meta).
-            const ts = Number.isFinite(chunk.timestamp) ? chunk.timestamp : produced * frameUs;
+            const ts = Number.isFinite(chunk.timestamp)
+              ? chunk.timestamp
+              : (produced - 1) * frameUs; // produced a deja ete incremente
             const dur = Number.isFinite(chunk.duration) && chunk.duration >= 0
               ? chunk.duration
               : frameUs;
@@ -258,7 +265,15 @@ async function runPass(ctx) {
       for (const s of samples) {
         if (failure) break;
         decoder.decode(new EncodedVideoChunk(s));
-        while (decoder.decodeQueueSize > 8 || encoder.encodeQueueSize > 8) {
+        // Deadline obligatoire : un codec qui se fige sans lever (la panne
+        // meme que cette sonde traque) bloquait cette boucle pour toujours,
+        // sans message et sans passer a la strategie suivante.
+        const until = performance.now() + 15000;
+        while (!failure && (decoder.decodeQueueSize > 8 || encoder.encodeQueueSize > 8)) {
+          if (performance.now() > until) {
+            failure = new Error('files bloquées 15 s sans progression ni erreur');
+            break;
+          }
           await new Promise((r) => setTimeout(r, 0));
         }
       }
@@ -272,7 +287,10 @@ async function runPass(ctx) {
   );
 
   if (failure) {
-    return { encoded, produced, decoded, drawn, error: 'encodeur : ' + (failure.message || failure) };
+    return {
+      encoded, produced, decoded, drawn,
+      error: (drawn < decoded ? 'dessin : ' : 'codec : ') + (failure.message || failure)
+    };
   }
   if (muxFailure) {
     return {
@@ -291,15 +309,23 @@ async function runPass(ctx) {
   }
 
   let audioChunks = 0;
-  if (ctx.audio) {
-    for (const a of ctx.audio.chunks) {
-      muxer.addAudioChunkRaw(a.data, a.type, Math.round(a.timestamp),
-                             Math.round(a.duration), ctx.audio.meta);
-      audioChunks++;
+  try {
+    if (ctx.audio) {
+      for (const a of ctx.audio.chunks) {
+        muxer.addAudioChunkRaw(a.data, a.type, Math.round(a.timestamp),
+                               Math.round(a.duration), ctx.audio.meta);
+        audioChunks++;
+      }
     }
+    muxer.finalize();
+  } catch (e) {
+    // Sans ce filet, un refus du muxeur audio effacait une passe video reussie
+    // et relancait trois strategies pour rien, en annoncant la mauvaise cause.
+    return {
+      encoded, produced, decoded, drawn,
+      error: 'muxage audio : ' + (e.message || e) + ' (vidéo pourtant complète)'
+    };
   }
-
-  muxer.finalize();
   return {
     encoded, produced, decoded, drawn, peak, audioChunks,
     blob: new Blob([target.buffer], { type: 'video/mp4' })
@@ -328,9 +354,11 @@ export async function roundTrip(file, opts = {}) {
   const codec = await pickVideoCodec(fps);
 
   const attempts = [];
-  const tPipeline = performance.now();
 
   for (const strategy of STRATEGIES) {
+    // chaque passe est chronometree separement : facturer les essais rates a
+    // la passe gagnante gonflait le cout par image, donc le verdict budgetaire
+    const tPipeline = performance.now();
     onProgress({ phase: strategy.label, done: 0, total: samples.length });
     let pass;
     try {

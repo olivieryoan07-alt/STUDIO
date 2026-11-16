@@ -25,6 +25,25 @@ export function rotationFromMatrix(matrix) {
   return ((deg % 360) + 360) % 360;
 }
 
+// ISO/IEC 23001-8 : 16 = PQ (HDR10), 18 = HLG.
+const TRANSFER = { 16: 'pq', 18: 'hlg', 1: 'bt709', 6: 'bt601' };
+
+function colourFrom(mp4, trackId) {
+  try {
+    const trak = mp4.getTrackById(trackId);
+    for (const entry of trak.mdia.minf.stbl.stsd.entries) {
+      const colr = entry.colr;
+      if (colr && colr.transfer_characteristics !== undefined) {
+        return {
+          transfer: TRANSFER[colr.transfer_characteristics] || String(colr.transfer_characteristics),
+          known: true
+        };
+      }
+    }
+  } catch (_) { /* boite absente : on le dit plutot que de supposer */ }
+  return { transfer: '', known: false };
+}
+
 export async function inspectFile(file) {
   const MP4Box = globalThis.MP4Box;
   if (!MP4Box) throw new Error('mp4box.js n’est pas chargé');
@@ -58,6 +77,11 @@ export async function inspectFile(file) {
     throw new Error(file.name + ' : aucune piste vidéo (photo, Live Photo ou fichier audio ?)');
   }
 
+  // Revue 2026-11-16 : `transferCharacteristics` etait code en dur a '' et la
+  // profondeur deduite du seul nom de codec. Le champ HDR ne pouvait donc
+  // structurellement dire que « non » — et le releve en tirait qu'un risque
+  // bloquant tombait. On lit la vraie boite `colr`.
+  const colour = colourFrom(mp4, track.id);
   const durationSec = track.duration / track.timescale;
   const fps = durationSec > 0 ? track.nb_samples / durationSec : 0;
 
@@ -68,7 +92,8 @@ export async function inspectFile(file) {
     fps: Math.round(fps * 100) / 100,
     rotation: rotationFromMatrix(track.matrix),
     bitDepth: bitDepthFromCodec(track.codec),
-    transferCharacteristics: '',
+    transferCharacteristics: colour.transfer,
+    colourKnown: colour.known,
     durationSec: Math.round(durationSec * 100) / 100,
     sizeBytes: file.size,
     brands: (info.brands || []).join(' ')
