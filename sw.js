@@ -7,7 +7,7 @@
 
 import { cacheStrategy } from './src/core/cache-strategy.js';
 
-const VERSION = '0.19.0';
+const VERSION = '0.20.0';
 const CACHE = 'studio-' + VERSION;
 
 const SHELL = [
@@ -25,6 +25,15 @@ const SHELL = [
   './src/core/cache-strategy.js',
   './src/core/report.js',
   './src/core/asc.js',
+  './src/core/fft.js',
+  './src/core/onsets.js',
+  './src/core/tempo.js',
+  './src/core/sections.js',
+  './src/core/excerpt.js',
+  './src/probe/analyse-track.js',
+  './src/bench/click-track.js',
+  './src/bench/envelope-view.js',
+  './bench.html',
   './src/probe/caps.js',
   './src/probe/inspect.js',
   './src/probe/roundtrip.js',

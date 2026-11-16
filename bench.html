@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10131a">
+<link rel="icon" href="icon-192.png">
+<title>Banc d'écoute STUDIO</title>
+<style>
+  :root{
+    --ground:#10131a; --panel:#191e28; --line:#2e3747; --line-soft:#242b38;
+    --txt:#e6e9f0; --dim:#8d97a8; --dimmer:#5f6878;
+    --amber:#e9a640; --rouge:#cf4b36; --vert:#52a06f;
+    --mono:"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:max(18px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+  .wrap{max-width:640px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:10px}
+  h1{font-size:22px;letter-spacing:.12em;text-transform:uppercase;margin:0;font-weight:700}
+  .version{font-family:var(--mono);font-size:12px;color:var(--dimmer)}
+  .tagline{color:var(--dim);margin:2px 0 18px;font-size:13.5px}
+  .card{border:1px solid var(--line);border-radius:3px;background:var(--panel);
+        padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--amber);margin:0 0 9px}
+  .card > p{margin:0 0 11px;color:var(--dim);font-size:13.5px}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;
+        font-variant-numeric:tabular-nums}
+  td{padding:4px 0;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  td:first-child{color:var(--dim);padding-right:12px}
+  td:last-child{text-align:right;word-break:break-word}
+  tr:last-child td{border-bottom:0}
+  .chip{display:inline-block;padding:1px 6px;border-radius:2px;font-size:11px;
+        letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+  .ok{background:rgba(82,160,111,.17);color:var(--vert)}
+  .no{background:rgba(207,75,54,.17);color:var(--rouge)}
+  input[type=file]{display:block;font-family:var(--mono);font-size:12.5px;
+                   color:var(--dim);margin-bottom:10px;max-width:100%}
+  input[type=file]::file-selector-button{
+    font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11px;font-weight:600;
+    background:transparent;color:var(--amber);border:1px solid var(--amber);
+    border-radius:2px;padding:7px 13px;margin-right:10px}
+  .row{display:flex;gap:9px;flex-wrap:wrap;margin:10px 0 0}
+  button{font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11.5px;
+         font-weight:600;background:transparent;color:var(--amber);
+         border:1px solid var(--amber);border-radius:2px;padding:8px 14px;cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button:not(:disabled):hover{background:var(--amber);color:#171208}
+  .status{font-family:var(--mono);font-size:12px;color:var(--amber);margin:10px 0 0;min-height:1.2em}
+  .status.err{color:var(--rouge)}
+  canvas{width:100%;height:120px;display:block;margin-top:12px;border-radius:2px}
+  .legende{display:flex;gap:14px;flex-wrap:wrap;margin-top:7px;
+           font-family:var(--mono);font-size:11px;color:var(--dimmer)}
+  .legende span{display:flex;align-items:center;gap:5px}
+  .legende s{width:10px;height:10px;border-radius:2px;display:block;text-decoration:none}
+  .questions{border-left:2px solid var(--amber);padding-left:12px;margin-top:4px}
+  .questions li{margin-bottom:6px;color:var(--txt);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Banc d'écoute</h1>
+    <span class="version" id="version"></span>
+  </header>
+  <p class="tagline">Phase 1A — le moteur audio, rendu audible.</p>
+
+  <section class="card">
+    <h2>Le morceau</h2>
+    <p>Choisis un de tes morceaux. Tout reste sur l'appareil.</p>
+    <input type="file" id="afile" accept="audio/*,.mp3,.m4a,.wav">
+    <p class="status" id="stat"></p>
+    <table id="res"></table>
+    <canvas id="plot" width="1200" height="240"></canvas>
+    <div class="legende">
+      <span><s style="background:#5b6bb5"></s> énergie</span>
+      <span><s style="background:#cf4b36"></s> point culminant</span>
+      <span><s style="background:#e9a640"></s> extrait retenu</span>
+      <span><s style="background:#242b38"></s> sections</span>
+    </div>
+    <div class="row">
+      <button id="playAll" disabled>Écouter tout</button>
+      <button id="playExcerpt" disabled>Écouter l'extrait</button>
+      <button id="stop" disabled>Arrêter</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Ce qu'il faut juger</h2>
+    <ol class="questions">
+      <li>Les clics tombent-ils <b>sur</b> le rythme, du début à la fin, sans dériver&nbsp;?</li>
+      <li>Le point culminant tombe-t-il là où <b>ça décolle à l'oreille</b>&nbsp;?</li>
+      <li>L'extrait retenu est-il un passage que tu <b>mettrais sur un reel</b>&nbsp;?</li>
+    </ol>
+    <p style="margin-top:11px">Clic aigu&nbsp;: un temps. Clic plus fort&nbsp;: début de mesure. Son grave&nbsp;: le point culminant.</p>
+  </section>
+</div>
+
+<script type="module">
+  import { analyseTrack } from './src/probe/analyse-track.js';
+  import { createBench } from './src/bench/click-track.js';
+  import { drawEnvelope } from './src/bench/envelope-view.js';
+  import { loadAudio } from './src/probe/audio.js';
+
+  window.STUDIO_VERSION = '0.20.0';
+  const $ = (id) => document.getElementById(id);
+  $('version').textContent = 'v' + window.STUDIO_VERSION;
+
+  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+  const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
+  const mmss = (s) => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx = null;
+  let bench = null;
+  let buffer = null;
+  let analysis = null;
+
+  $('afile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $('res').innerHTML = '';
+    $('stat').className = 'status';
+    $('playAll').disabled = $('playExcerpt').disabled = $('stop').disabled = true;
+
+    try {
+      analysis = await analyseTrack(file, (p) => { $('stat').textContent = p.phase + '…'; });
+      buffer = await loadAudio(file);
+
+      const e2 = analysis.excerpt;
+      $('res').innerHTML =
+        row('Durée', mmss(analysis.durationSec)) +
+        row('Échantillonnage', (analysis.sampleRate / 1000) + ' kHz · ' + analysis.channels + ' canaux') +
+        row('Tempo', '<span style="color:var(--amber)">' + analysis.bpm.toFixed(1) + ' BPM</span>') +
+        row('Confiance du tempo',
+            chip(analysis.confidence >= 0.3, (analysis.confidence * 100).toFixed(0) + ' %') +
+            (analysis.confidence < 0.3
+              ? '<br><span style="color:var(--rouge)">tempo peu fiable : morceau sans percussion nette ?</span>'
+              : '')) +
+        row('Un temps', analysis.grid.beatSec.toFixed(3) + ' s') +
+        row('Premier temps', analysis.grid.offsetSec.toFixed(3) + ' s') +
+        row('Point culminant', mmss(analysis.climax.timeSec) +
+            ' <span style="color:var(--dimmer)">(saut ×' + analysis.climax.stepRatio.toFixed(1) + ')</span>') +
+        row('Sections', analysis.sections.length) +
+        (e2
+          ? row('Extrait', mmss(e2.startSec) + ' → ' + mmss(e2.startSec + e2.durSec) +
+                '<br><span style="color:var(--dimmer)">' + e2.durSec.toFixed(1) + ' s · ' +
+                e2.beatCount + ' temps · rafale au ' + e2.burstBeatIndex + 'e</span>')
+          : row('Extrait', chip(false, 'impossible') + '<br><span style="color:var(--rouge)">' +
+                analysis.excerptError + '</span>')) +
+        row('Analyse', analysis.msTotal + ' ms');
+
+      drawEnvelope($('plot'), analysis);
+      $('stat').textContent = 'terminé — écoute, puis réponds aux trois questions.';
+      $('playAll').disabled = false;
+      $('playExcerpt').disabled = !analysis.excerpt;
+    } catch (err) {
+      $('stat').className = 'status err';
+      $('stat').textContent = err.message;
+    }
+  });
+
+  function ensureBench() {
+    if (!ctx) { ctx = new AC(); bench = createBench(ctx); }
+    if (ctx.state === 'suspended') ctx.resume();
+    return bench;
+  }
+
+  $('playAll').addEventListener('click', () => {
+    ensureBench().play(buffer, analysis.grid, analysis.climax.timeSec, 0, analysis.durationSec);
+    $('stop').disabled = false;
+  });
+
+  $('playExcerpt').addEventListener('click', () => {
+    const e = analysis.excerpt;
+    ensureBench().play(buffer, analysis.grid, analysis.climax.timeSec,
+                       e.startSec, e.startSec + e.durSec);
+    $('stop').disabled = false;
+  });
+
+  $('stop').addEventListener('click', () => {
+    if (bench) bench.stop();
+    $('stop').disabled = true;
+  });
+</script>
+</body>
+</html>

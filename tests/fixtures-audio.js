@@ -47,3 +47,24 @@ export function smoothNoise(sec, sampleRate) {
   }
   return out;
 }
+
+// Frappe realiste : attaque large bande suivie d'une decroissance de ~12 ms
+// sur 50 ms. Un clic de 2 ms etale son energie sur une seule trame de FFT et
+// rend le calage de phase trop facile ; une vraie batterie resonne, le pic du
+// flux spectral s'aplatit, et c'est la que le calage derape (mesure du
+// 2026-11-16 : 107 ms d'erreur sur un morceau montant en intensite).
+export function drumTrack(sec, sampleRate, bpm, offsetSec = 0, gainAt = () => 1) {
+  const out = new Float32Array(Math.round(sec * sampleRate));
+  const period = 60 / bpm;
+  const len = Math.round(0.05 * sampleRate);
+  const tau = sampleRate * 0.012;
+  const rnd = prng(4242);
+  for (let t = offsetSec; t < sec; t += period) {
+    const start = Math.round(t * sampleRate);
+    const amp = gainAt(t);
+    for (let i = 0; i < len && start + i < out.length; i++) {
+      out[start + i] += (rnd() * 2 - 1) * amp * Math.exp(-i / tau);
+    }
+  }
+  return out;
+}
