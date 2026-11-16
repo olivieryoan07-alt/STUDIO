@@ -43,6 +43,7 @@
     await import('./onsets.test.js');
     await import('./tempo.test.js');
     await import('./sections.test.js');
+    await import('./excerpt.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
