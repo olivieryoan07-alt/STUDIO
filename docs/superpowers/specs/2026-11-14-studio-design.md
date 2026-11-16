@@ -1,7 +1,8 @@
 # STUDIO — Document de conception
 
 **Date :** 2026-11-14
-**Statut :** **validé par l'utilisateur le 2026-11-14.** Prêt pour le plan d'exécution.
+**Statut :** validé le 2026-11-14. **Phase 0 exécutée le 2026-11-16 : verdict `go`**
+(voir `2026-11-16-mesures-phase-0.md`). Deux affirmations du §3 corrigées depuis.
 **Auteur :** rédigé avec Yoan Olivier
 
 ---
@@ -90,9 +91,26 @@ Chacun suffit. Les trois ensemble ferment définitivement la porte du natif.
 - **Longueur des clips : 20 à 30 s, déclaré par l'utilisateur comme son maximum habituel.** Aucun plafond imposé par l'app — l'utilisateur a répondu « une limite si c'est mieux, sinon non », et rien n'impose d'en poser une. Pire cas dimensionnant : **5 clips × 30 s = 150 s de matière à analyser.** C'est ce chiffre, et non 75 s, que la séance 1 doit mesurer.
 - Sortie : 9:16, 15 à 25 s, durée fixée par l'app (décision validée).
 
-### La matière source : 1080p 60 fps
+### La matière source : 4K aujourd'hui, 1080p demain
 
-**Toutes les vidéos de l'utilisateur sont filmées en 1080p à 60 images/seconde.** Fait déclaré en séance.
+> **Corrigé après la phase 0.** Cette section affirmait « 1080p 60 » et en
+> tirait une copie sans aucune conversion. **C'est faux pour la matière
+> actuelle** : toutes les vidéos de test sont en **4K**, et l'utilisateur
+> déclare vouloir passer au 1080p ensuite. Les deux cas doivent tenir.
+
+| | 4K (matière actuelle) | 1080p (matière visée) |
+|---|---|---|
+| Définition mesurée | 3840×2160 | 1920×1080 |
+| Cadence mesurée | 30 img/s | 60 img/s annoncés |
+| Vers 1080×1920 | **réduction** de définition | copie pixel pour pixel |
+
+**Rotation : 90°.** Mesure de la phase 0, et elle était absente de ce
+document. Les clips sont stockés **en paysage** et redressés par la matrice de
+piste. Le moteur doit appliquer cette rotation avant tout cadrage, sans quoi
+l'intégralité du montage sort couchée. Ce n'est pas un cas limite : c'est le
+cas normal de l'iPhone.
+
+Fait déclaré en séance, conservé pour mémoire :
 
 | | |
 |---|---|
@@ -101,7 +119,7 @@ Chacun suffit. Les trois ensemble ferment définitivement la porte du natif.
 | Poids | ≈ 1,5 Mo/s en HEVC → un clip de 15 s ≈ **22 Mo**, cinq clips ≈ **110 Mo** |
 | Mémoire | une seule image décodée en RGBA ≈ **8,3 Mo** |
 
-> **Conséquence heureuse, et elle n'est pas mineure : la source est déjà exactement au format de sortie.** 1080×1920 en entrée, 1080×1920 en sortie — aucun redimensionnement, aucun rééchantillonnage, pas la moindre perte de définition. Le recadrage 9:16 se réduit à une copie pixel pour pixel. C'est la meilleure qualité atteignable, et elle est gratuite.
+> **Ce qui reste vrai :** quand la source est en 1080p, la chaîne ne redimensionne rien et le recadrage 9:16 se réduit à une copie pixel pour pixel. **Ce qui est faux pour la matière actuelle :** en 4K, sortir en 1080×1920 *est* une réduction, et le relevé de la sonde l'indique d'ailleurs en rouge.
 >
 > Deuxième cadeau : la sortie étant elle aussi à 60 img/s (voir « Format de sortie »), **il n'y a pas non plus de rééchantillonnage temporel**. Chaque image source devient une image de sortie, une pour une. Le montage se réduit à choisir lesquelles garder et dans quel ordre — jamais à en fabriquer.
 
@@ -174,6 +192,9 @@ Aucun écran de réglage n'existe nulle part dans ce parcours.
 Chaque clip est décodé image par image en basse résolution (≈192 px de large) et chaque image reçoit quatre mesures.
 
 **Critères de rejet** — figés avec l'utilisateur :
+
+**Avant toute mesure, la rotation de la piste est appliquée** (90° sur la
+matière mesurée). Les critères ci-dessous portent sur l'image redressée.
 
 | Critère | Mesure | Rejette |
 |---|---|---|
@@ -280,6 +301,23 @@ La forme ci-dessus fait 50 temps. Un morceau en fait environ 700. Il faut donc l
 **Réserve assumée :** en compte gratuit, le dépôt doit être **public**. Sans conséquence ici (aucun secret, aucune donnée). Si un dépôt privé devient souhaité : Cloudflare Pages, gratuit également.
 
 Un *service worker* met l'app en cache pour qu'elle démarre hors ligne. Les fichiers de l'utilisateur ne sont jamais envoyés nulle part.
+
+### Deux règles d'ingénierie imposées par la phase 0
+
+Elles ne sont pas des préférences de style : chacune a coûté plusieurs heures.
+
+1. **Tout callback de codec WebCodecs porte un `try/catch` qui enregistre
+   l'erreur.** Une exception levée dans un callback `output` s'exécute dans sa
+   propre tâche et **ne remonte jamais** : la chaîne meurt en silence et le
+   symptôme apparaît ailleurs, des dizaines de lignes plus loin.
+2. **Chaque étape a son propre compteur.** Un compteur unique mélangeant
+   « produit par l'encodeur » et « accepté par le muxeur » a fait accuser
+   l'encodeur pendant cinq hypothèses successives, alors que l'encodeur
+   fonctionnait depuis le début.
+
+Corollaire pour les moteurs de la phase 1 : aucun seuil ne se règle à
+l'aveugle. Tout réglage doit être **lisible et mesurable** sur un banc, pas
+deviné puis enterré dans le code.
 
 ---
 
