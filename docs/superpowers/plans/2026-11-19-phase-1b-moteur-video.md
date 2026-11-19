@@ -109,7 +109,7 @@ spontanément, et qui casseraient l'app chez l'utilisateur :
 
 ---
 
-## Tâche 1 : fixtures d'image et netteté
+## Task 1: fixtures d'image et netteté
 
 **Fichiers :**
 - Créer : `tests/fixtures-image.js`, `src/core/laplacian.js`
@@ -176,7 +176,7 @@ git commit -m "feat: nettete par variance du laplacien"
 
 ---
 
-## Tâche 2 : inclinaison de l'horizon
+## Task 2: inclinaison de l'horizon
 
 **Fichiers :**
 - Créer : `src/core/horizon.js`, `tests/horizon.test.js`
@@ -243,7 +243,7 @@ git commit -m "feat: inclinaison de l horizon par orientation des contours"
 
 ---
 
-## Tâche 3 : exposition
+## Task 3: exposition
 
 **Fichiers :**
 - Créer : `src/core/exposition.js`, `tests/exposition.test.js`
@@ -289,7 +289,7 @@ git commit -m "feat: mesure d exposition par pixels crames et bouches"
 
 ---
 
-## Tâche 4 : empreinte d'image et distance
+## Task 4: empreinte d'image et distance
 
 **Fichiers :**
 - Créer : `src/core/empreinte.js`, `tests/empreinte.test.js`
@@ -350,7 +350,7 @@ git commit -m "feat: empreinte d image reduite et distance de Hamming"
 
 ---
 
-## Tâche 5 : verdict d'une image et le bloc des seuils
+## Task 5: verdict d'une image et le bloc des seuils
 
 **Fichiers :**
 - Créer : `src/core/frame-score.js`, `tests/frame-score.test.js`
@@ -440,7 +440,7 @@ git commit -m "feat: verdict par image et bloc unique des seuils"
 
 ---
 
-## Tâche 6 : plages exploitables
+## Task 6: plages exploitables
 
 **Fichiers :**
 - Créer : `src/core/ranges.js`, `tests/ranges.test.js`
@@ -538,7 +538,7 @@ git commit -m "feat: groupement des images retenues en plages notees"
 
 ---
 
-## Tâche 7 : décodage en images grises redressées
+## Task 7: décodage en images grises redressées
 
 **Fichiers :**
 - Créer : `src/probe/demux.js`, `src/probe/decode-frames.js`
@@ -636,7 +636,7 @@ git commit -m "feat: decodage en images grises redressees, demuxeur partage"
 
 ---
 
-## Tâche 8 : enchaînement et statistiques du clip
+## Task 8: enchaînement et statistiques du clip
 
 **Fichiers :**
 - Créer : `src/probe/analyse-clip.js`, `tests/analyse-clip.test.js`
@@ -694,7 +694,7 @@ git commit -m "feat: enchainement d analyse d un clip et distributions"
 
 ---
 
-## Tâche 9 : le banc visuel
+## Task 9: le banc visuel
 
 **Fichiers :**
 - Créer : `bench-video.html`, `src/bench/clip-view.js`
