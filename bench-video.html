@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10131a">
+<link rel="icon" href="icon-192.png">
+<title>Banc vidéo STUDIO</title>
+<style>
+  :root{
+    --ground:#10131a; --panel:#191e28; --line:#2e3747; --line-soft:#242b38;
+    --txt:#e6e9f0; --dim:#8d97a8; --dimmer:#5f6878;
+    --amber:#e9a640; --rouge:#cf4b36; --vert:#52a06f;
+    --mono:"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:max(18px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+  .wrap{max-width:640px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:10px}
+  h1{font-size:22px;letter-spacing:.12em;text-transform:uppercase;margin:0;font-weight:700}
+  .version{font-family:var(--mono);font-size:12px;color:var(--dimmer)}
+  .tagline{color:var(--dim);margin:2px 0 18px;font-size:13.5px}
+  .card{border:1px solid var(--line);border-radius:3px;background:var(--panel);
+        padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--amber);margin:0 0 9px}
+  .card > p{margin:0 0 11px;color:var(--dim);font-size:13.5px}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;
+        font-variant-numeric:tabular-nums}
+  td,th{padding:4px 0;border-bottom:1px solid var(--line-soft);vertical-align:top;
+        text-align:right;font-weight:400}
+  td:first-child,th:first-child{color:var(--dim);padding-right:12px;text-align:left}
+  tr:last-child td{border-bottom:0}
+  .chip{display:inline-block;padding:1px 6px;border-radius:2px;font-size:11px;
+        letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+  .ok{background:rgba(82,160,111,.17);color:var(--vert)}
+  .no{background:rgba(207,75,54,.17);color:var(--rouge)}
+  input[type=file]{display:block;font-family:var(--mono);font-size:12.5px;
+                   color:var(--dim);margin-bottom:10px;max-width:100%}
+  input[type=file]::file-selector-button{
+    font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11px;font-weight:600;
+    background:transparent;color:var(--amber);border:1px solid var(--amber);
+    border-radius:2px;padding:7px 13px;margin-right:10px}
+  .status{font-family:var(--mono);font-size:12px;color:var(--amber);margin:10px 0 0;min-height:1.2em}
+  .status.err{color:var(--rouge)}
+  canvas{width:100%;display:block;margin-top:12px;border-radius:2px}
+  .legende{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;
+           font-family:var(--mono);font-size:11px;color:var(--dimmer)}
+  .legende span{display:flex;align-items:center;gap:5px}
+  .legende s{width:10px;height:10px;border-radius:2px;display:block;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Banc vidéo</h1>
+    <span class="version" id="version"></span>
+  </header>
+  <p class="tagline">Phase 1B — les quatre critères, rendus lisibles.</p>
+
+  <section class="card">
+    <h2>Le clip</h2>
+    <p>Choisis une vidéo de ta galerie. Tout reste sur l'appareil.</p>
+    <input type="file" id="vfile" accept="video/*,.mp4,.mov">
+    <p class="status" id="stat"></p>
+    <table id="entete"></table>
+    <canvas id="plot"></canvas>
+    <div class="legende">
+      <span><s style="background:#52a06f"></s> retenu</span>
+      <span><s style="background:#cf4b36"></s> flou</span>
+      <span><s style="background:#c08a2e"></s> de travers</span>
+      <span><s style="background:#b5527f"></s> cramé</span>
+      <span><s style="background:#4f6fb5"></s> bouché</span>
+      <span><s style="background:#3b4458"></s> bord</span>
+      <span><s style="background:#e9a640"></s> plages retenues</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Distributions — à recopier</h2>
+    <p>C'est ce tableau qui dit où poser chaque seuil. Les verdicts ne le disent pas.</p>
+    <table id="distrib"></table>
+  </section>
+
+  <section class="card">
+    <h2>Plages retenues</h2>
+    <table id="plages"></table>
+  </section>
+</div>
+
+<script src="./vendor/mp4box.all.min.js"></script>
+<script type="module">
+  import { analyseClip } from './src/probe/analyse-clip.js';
+  import { dessinerClip, texteColorimetrie, HAUTEUR_DESSIN } from './src/bench/clip-view.js';
+  import { THRESHOLDS } from './src/core/frame-score.js';
+  import { mmss } from './src/core/format.js';
+
+  window.STUDIO_VERSION = '0.22.0';
+  const $ = (id) => document.getElementById(id);
+  $('version').textContent = 'v' + window.STUDIO_VERSION;
+
+  const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
+  const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
+  const n2 = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2));
+
+
+
+  $('vfile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $('entete').innerHTML = $('distrib').innerHTML = $('plages').innerHTML = '';
+    $('stat').className = 'status';
+
+    try {
+      const a = await analyseClip(file, (p) => {
+        $('stat').textContent = p.phase + (p.fait ? ` ${p.fait}/${p.total}` : '') + '…';
+      });
+
+      const connue = a.info.colourKnown;
+      $('entete').innerHTML =
+        row('Fichier', file.name) +
+        row('Définition', a.source.srcW + '×' + a.source.srcH) +
+        row('Cadence', a.source.fps.toFixed(1) + ' img/s') +
+        row('Rotation', a.source.rotation + '°') +
+        row('Durée', mmss(a.source.dureeSec)) +
+        row('Colorimétrie', connue
+            ? texteColorimetrie(a.info)
+            : chip(false, 'non lue') +
+              '<br><span style="color:var(--dimmer)">' + texteColorimetrie(a.info) + '</span>') +
+        row('Cadre d\'analyse', a.source.w + '×' + a.source.h) +
+        row('Paquets · décodées · mesurées',
+            a.comptes.paquets + ' · ' + a.comptes.decodees + ' · ' + a.comptes.analysees +
+            (a.comptes.perdues ? ' · <span style="color:var(--rouge)">' +
+             a.comptes.perdues + ' perdues</span>' : '')) +
+        row('Secondes utiles', a.secondesUtiles.toFixed(1) + ' s sur ' +
+            a.source.dureeSec.toFixed(1)) +
+        row('Analyse', a.msTotal + ' ms<br><span style="color:var(--dimmer)">' +
+            Object.entries(a.timings).map(([k, v]) => k + ' ' + v).join(' · ') + '</span>');
+
+      const seuils = {
+        nettete: THRESHOLDS.NETTETE_MIN, inclinaison: THRESHOLDS.INCLINAISON_MAX,
+        crame: THRESHOLDS.CRAME_MAX, bouche: THRESHOLDS.BOUCHE_MAX
+      };
+      $('distrib').innerHTML =
+        '<tr><th>critère</th><th>min</th><th>méd.</th><th>p90</th><th>max</th><th>seuil</th></tr>' +
+        Object.entries(a.stats).map(([k, s]) =>
+          `<tr><td>${k}</td><td>${n2(s.min)}</td><td>${n2(s.median)}</td>` +
+          `<td>${n2(s.p90)}</td><td>${n2(s.max)}</td>` +
+          `<td style="color:var(--amber)">${seuils[k]}</td></tr>`).join('') +
+        '<tr><td>rejets</td><td colspan="5">' +
+          Object.entries(a.rejets).map(([k, v]) => k + ' ' + v).join(' · ') + '</td></tr>';
+
+      $('plages').innerHTML = a.plages.length
+        ? a.plages.map((p, i) =>
+            row('#' + (i + 1) + ' ' + p.startSec.toFixed(2) + ' → ' + p.endSec.toFixed(2) + ' s',
+                (p.endSec - p.startSec).toFixed(2) + ' s · note ' + p.note.toFixed(2))).join('')
+        : row('—', chip(false, 'aucune plage exploitable'));
+
+      dessinerClip($('plot'), a);
+      $('stat').textContent = 'terminé — recopie le tableau des distributions.';
+    } catch (err) {
+      $('stat').className = 'status err';
+      $('stat').textContent = err.message;
+    }
+  });
+</script>
+</body>
+</html>
