@@ -67,11 +67,17 @@ export function flou(gray, w, h, rayon) {
 // `degres` positif fait MONTER l'horizon vers la droite, comme un cadre
 // penche dans le sens des aiguilles d'une montre. C'est la convention que
 // `tilt()` doit rendre : horizonIncline(w, h, 15) -> angleDeg ~ +15.
+// Le passage clair/sombre est ADOUCI sur deux pixels, et ce n'est pas un
+// ornement : une frontiere en marche d'escalier ferait lire au filtre de
+// Sobel une succession de contours horizontaux et de marches verticales,
+// jamais l'inclinaison reelle. Un vrai horizon est adouci par l'optique ;
+// une fixture a bord dur mesurerait un artefact de rasterisation.
 export function horizonIncline(w, h, degres) {
   const pente = Math.tan(degres * Math.PI / 180);
   return grayImage(w, h, (x, y) => {
     const frontiere = h / 2 - (x - w / 2) * pente;
-    return y < frontiere ? 200 : 40;
+    const t = Math.max(0, Math.min(1, 0.5 + (frontiere - y) / 2));
+    return Math.round(40 + t * 160);
   });
 }
 

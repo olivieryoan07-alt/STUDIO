@@ -47,6 +47,7 @@
     await import('./analyse-track.test.js');
     await import('./format.test.js');
     await import('./laplacian.test.js');
+    await import('./horizon.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
