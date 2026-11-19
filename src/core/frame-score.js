@@ -1,0 +1,61 @@
+// Le verdict d'une image, et LE SEUL ENDROIT DU PROJET OU VIT UN SEUIL.
+//
+// Pourquoi tout est groupe ici : les seuils ne peuvent pas etre devines
+// (§8 de la conception), ils se reglent contre les vraies videos. Or
+// l'utilisateur regle sur son iPhone, par allers-retours. Chaque aller-retour
+// doit donc couter UNE LIGNE a changer, pas une chasse dans quatre modules.
+
+import { sharpness } from './laplacian.js';
+import { tilt } from './horizon.js';
+import { exposition } from './exposition.js';
+import { empreinte } from './empreinte.js';
+
+export const THRESHOLDS = {
+  NETTETE_MIN: 60,         // variance du laplacien, image grise de 192 px
+  INCLINAISON_MAX: 8,      // degres
+  HORIZON_FORCE_MIN: 0.12, // en dessous, l'horizon n'est pas un motif de rejet
+  NIVEAU_CRAME: 250,
+  NIVEAU_BOUCHE: 8,
+  CRAME_MAX: 0.08,
+  BOUCHE_MAX: 0.20,
+  RESSEMBLANCE_MAX: 10,    // distance de Hamming sous laquelle deux plans se
+                           // ressemblent (consomme par le montage, phase 1C)
+  PLAGE_MIN_SEC: 0.5,      // un plan dure au moins un temps : 0,43 s a 140 BPM
+  BORD_SEC: 1.0            // §5.2 : jeter la premiere et la derniere seconde
+};
+
+// VALEURS DE DEPART ASSUMEES. Aucune n'a ete mesuree contre la vraie matiere.
+// Elles seront reglees en seance sur l'iPhone, a la lecture des distributions
+// affichees par `bench-video.html`. Les tenir pour justes serait l'erreur que
+// la phase 1A a deja commise une fois.
+
+// L'ordre des motifs n'est pas indifferent : une image floue est floue avant
+// d'etre de travers, et mesurer un horizon dans du flou n'a pas de sens.
+export function scoreFrame(gray, w, h) {
+  const nettete = sharpness(gray, w, h);
+  const incline = tilt(gray, w, h);
+  const expo = exposition(gray, THRESHOLDS.NIVEAU_CRAME, THRESHOLDS.NIVEAU_BOUCHE);
+
+  let motif = null;
+  if (nettete < THRESHOLDS.NETTETE_MIN) {
+    motif = 'nettete';
+  } else if (incline.strength >= THRESHOLDS.HORIZON_FORCE_MIN
+             && Math.abs(incline.angleDeg) > THRESHOLDS.INCLINAISON_MAX) {
+    motif = 'horizon';
+  } else if (expo.crame > THRESHOLDS.CRAME_MAX) {
+    motif = 'crame';
+  } else if (expo.bouche > THRESHOLDS.BOUCHE_MAX) {
+    motif = 'bouche';
+  }
+
+  return {
+    nettete,
+    inclinaison: incline.angleDeg,
+    forceHorizon: incline.strength,
+    crame: expo.crame,
+    bouche: expo.bouche,
+    empreinte: empreinte(gray, w, h),
+    ok: motif === null,
+    motif
+  };
+}
