@@ -52,6 +52,7 @@
     await import('./empreinte.test.js');
     await import('./frame-score.test.js');
     await import('./ranges.test.js');
+    await import('./gris.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
