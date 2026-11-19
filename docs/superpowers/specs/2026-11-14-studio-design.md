@@ -17,6 +17,8 @@ L'utilisateur lui donne 2 à 5 vidéos et un morceau de musique. STUDIO rend un 
 
 Conséquence directe sur la conception : **l'app doit avoir du goût à la place de l'utilisateur.** On ne peut pas lui demander de juger « est-ce que ce montage est réussi ? ». On peut seulement lui demander de choisir entre des résultats qu'il regarde.
 
+> **Nuance apportée le 2026-11-19, après validation à l'oreille.** Le goût que l'app doit avoir est celui du *montage* : où couper, à quelle densité, dans quel ordre. Il y a une chose qu'elle ne peut pas avoir à sa place, et la mesure l'a montré : **la connaissance du morceau**. Savoir que le bon passage est la reprise à 3:40 et non l'entrée du groupe à 0:18 ne se lit pas dans le signal. L'utilisateur désigne donc le passage ; l'app fait tout le reste. Voir §5.1 bis.
+
 ### La matière à monter
 
 Elle est homogène et connue :
@@ -33,7 +35,7 @@ Cette homogénéité est un atout : le moteur n'a pas à être généraliste.
 
 ### Objectifs
 
-1. De l'ajout des fichiers au reel exporté, **sans aucune décision de montage** demandée à l'utilisateur.
+1. De l'ajout des fichiers au reel exporté, **sans aucune décision de montage** demandée à l'utilisateur. Désigner le passage du morceau (§5.1 bis) n'en est pas une : c'est choisir la matière, au même titre que choisir les vidéos.
 2. Les coupes tombent sur le rythme, de façon audible et visible.
 3. La densité des coupes suit la structure du morceau (voir §5.3).
 4. Trois propositions différentes, pour que choisir reste un acte de spectateur et jamais de monteur.
@@ -162,6 +164,16 @@ Trois règles en découlent, non négociables dans l'implémentation :
 
 **Ce que C coûte, honnêtement :** les outils d'analyse d'image d'Apple (horizon, empreinte d'image) n'existent pas côté web et doivent être réécrits en plus simple (§5.2). Moins fin que le natif, suffisant pour les critères retenus.
 
+### Sur le choix du passage musical
+
+*Ajouté le 2026-11-19, après le rejet à l'écoute de la règle automatique (§5.1 bis).*
+
+**A — Une seule piste, façon Instagram. ✅ Retenue par l'utilisateur.** Tout le morceau sur la largeur de l'écran, une fenêtre de longueur imposée qu'on fait glisser dessus. Familier, peu de code, la structure du morceau se lit d'un coup d'œil. **Ce qu'elle coûte :** 1 pixel par seconde — le doigt ne peut pas viser un temps. Compensé par deux boutons de réglage fin.
+
+**B — Deux pistes : vue d'ensemble + réglage fin zoomé.** La piste du haut dit *où dans le morceau*, celle du bas (~8 px/s) *sur quelle mesure*, avec les traits de mesure visibles. **Recommandée par le rédacteur, écartée par l'utilisateur** : écran plus chargé, deux fois plus de dessin, pour un gain qu'il juge faible face à deux boutons. Reste la porte de sortie si le réglage au bouton déçoit — c'est un ajout par-dessus A, pas une refonte.
+
+**C — Écouter et marquer, sans forme d'onde.** Un bouton lecture, un bouton « commencer ici ». **Écartée par le rédacteur** : il faudrait écouter cinq minutes pour retrouver un passage. C'est justement la forme d'onde qui rend le choix instantané — l'utilisateur a désigné le bon endroit sur une copie d'écran, sans rien écouter.
+
 ### Sur l'organisation du code
 
 **C₂ — Moteur en module séparé, branché tôt dans l'app. ✅ Retenue.** Un module `engine/`, logique pure, sans interface, testable **dans le navigateur du Mac en quelques secondes** contre de vrais fichiers. Par-dessus, une interface mince.
@@ -176,16 +188,46 @@ Trois règles en découlent, non négociables dans l'implémentation :
 
 1. Ouvrir STUDIO depuis l'écran d'accueil.
 2. Choisir 2 à 5 vidéos dans la galerie.
-3. Choisir un fichier audio dans Fichiers.
-4. Lancer. L'app analyse le son, puis les vidéos, puis construit et **encode trois montages**. C'est la seule attente du parcours, avec une progression visible.
-5. Regarder les trois. Ce sont de vraies vidéos finies : ce qu'il voit est exactement ce qu'il obtiendra.
-6. En garder une — **instantané**, le fichier existe déjà. Les deux autres sont jetées.
-7. Le partage iOS s'ouvre → « Enregistrer la vidéo » → la galerie.
-8. L'utilisateur ouvre Instagram et publie lui-même.
+3. Choisir un fichier audio dans Fichiers. L'app l'analyse et affiche sa piste.
+4. **Désigner le passage** : faire glisser la fenêtre sur la piste, écouter, valider (§5.1 bis).
+5. Lancer. L'app analyse les vidéos, puis construit et **encode trois montages**. C'est la seule attente du parcours, avec une progression visible.
+6. Regarder les trois. Ce sont de vraies vidéos finies : ce qu'il voit est exactement ce qu'il obtiendra.
+7. En garder une — **instantané**, le fichier existe déjà. Les deux autres sont jetées.
+8. Le partage iOS s'ouvre → « Enregistrer la vidéo » → la galerie.
+9. L'utilisateur ouvre Instagram et publie lui-même.
 
-Aucun écran de réglage n'existe nulle part dans ce parcours.
+Aucun écran de réglage n'existe nulle part dans ce parcours. Un seul écran de **choix**, à l'étape 4, et il ne porte sur aucun paramètre du montage.
 
 **Si aucune des trois ne convient :** un bouton « trois autres » relance la construction sur les mêmes fichiers, avec une sélection différente. L'analyse n'est pas refaite — seuls le choix des segments et l'ordre changent, puis les trois sont réencodés. *Décision du rédacteur : l'utilisateur ne doit jamais se retrouver sans issue devant trois propositions qu'il n'aime pas.*
+
+### 5.1 bis — L'écran de choix du passage musical
+
+**Pourquoi il existe.** La règle automatique du §5.3 a été validée à l'oreille le 2026-11-19, et rejetée. Elle ne se trompe pas de calcul : elle désigne bien un vrai saut d'énergie. Mais elle désigne toujours le même — **intro calme → entrée du groupe**. Dans un morceau de metal c'est arithmétiquement le plus grand écart du morceau, et musicalement l'endroit le plus attendu. Le passage qui porte un reel est plus loin : la reprise après la cassure, le drop après le pont. **Le signal ne porte pas cette information** ; il faut connaître le morceau. Mesure à l'appui dans `2026-11-16-validation-audio.md`.
+
+**Ce n'est pas un réglage** — il faut le dire, parce que l'anti-objectif 1 est juste à côté. L'utilisateur choisit déjà ses vidéos et son morceau ; choisir *quelles vingt secondes du morceau* est le même geste : on désigne la matière, on ne dirige pas le montage. Aucun curseur de cet écran ne touche au montage — ni la durée, ni la densité des coupes, ni l'ordre des plans.
+
+**La forme : une seule piste, façon Instagram.** Approche A, choisie par l'utilisateur le 2026-11-19 contre l'approche B (deux pistes, vue d'ensemble + réglage fin zoomé).
+
+```
+┌─────────────────────────────────────┐
+│ ▂▃▁▂▅▆▅▆▃▁▂▄▆▇▆▇▆▅▂▁▃▅▇█▇█▇▆▃▁      │   tout le morceau
+│              ┃█████████┃            │   la fenêtre, longueur imposée
+└─────────────────────────────────────┘
+   ◀ 1 temps     ▶ ÉCOUTER     1 temps ▶
+```
+
+- La **piste entière** est dessinée sur la largeur de l'écran, sous forme d'enveloppe d'énergie — celle du §5.3, déjà calculée. C'est elle qui rend le choix instantané : la structure du morceau se lit d'un coup d'œil, sans écouter.
+- Une **fenêtre de longueur imposée** par l'app (§5.4 bis) se déplace dessus au doigt. Sa longueur ne se règle pas.
+- Au relâché, la fenêtre **se cale sur le temps le plus proche**, et la musique se joue en boucle depuis son début.
+- Deux boutons **`◀ 1 temps`** et **`1 temps ▶`** font le réglage fin.
+
+**Pourquoi des boutons, et c'est la décision à surveiller.** *Choix du rédacteur.* Un morceau de 4 min 53 étalé sur 343 px, c'est **1 pixel par seconde** : à 140 BPM, un pixel vaut plus de deux temps. Le doigt ne peut donc viser ni un temps, ni une mesure — la piste sert à **trouver** l'endroit, les boutons à le **régler**. L'approche B réglait cela par une seconde piste zoomée (~8 px/s) ; l'utilisateur l'a écartée. **Si le réglage au bouton s'avère pénible à l'usage, la piste zoomée s'ajoute par-dessus sans rien casser** : c'est un ajout, pas une refonte.
+
+**Position d'ouverture :** le plus grand saut d'énergie du morceau — l'ancienne règle, rétrogradée au rang de simple suggestion de départ. Elle a le mérite de ne jamais ouvrir sur du silence.
+
+**Bords du morceau :** la fenêtre ne peut pas sortir du morceau. Si le morceau est plus court que la fenêtre, l'app le refuse et le dit.
+
+**Ce que l'écran n'affiche pas : l'indice de confiance du tempo.** *Choix du rédacteur.* Il annonçait « 10 % — tempo peu fiable : morceau sans percussion nette ? », en rouge, sur un morceau dont la grille des temps était jugée juste à l'oreille (2026-11-19). Un indicateur qui crie au loup coûte plus qu'il ne rapporte. L'utilisateur entend désormais la musique pendant qu'il choisit : **l'oreille est le contrôle**. La valeur reste calculée, et reste affichée au banc d'essai.
 
 ### 5.2 Moteur d'analyse vidéo
 
@@ -220,10 +262,15 @@ Chaîne validée par la mesure (§6.1) :
 3. Flux spectral → enveloppe des attaques.
 4. Autocorrélation de l'enveloppe → tempo.
 5. Calage de phase → **grille des temps** (le tempo seul ne suffit pas : il faut savoir *où* tombent les temps).
-6. Enveloppe lissée (~2 s) → segmentation en sections.
-7. **Point culminant = le plus grand saut d'énergie vers le haut**, mesuré après un passage plus calme.
+6. Enveloppe lissée (~2 s) → **point culminant local** : le plus grand saut d'énergie vers le haut **à l'intérieur de la fenêtre choisie** (§5.1 bis). C'est lui, et lui seul, qui place la rafale du §5.4.
 
-> **Correction majeure issue de l'essai, et la découverte la plus importante de la séance.** La première version prenait le *maximum* de l'enveloppe. À l'écoute, l'utilisateur a constaté que le point culminant ressenti se situe **juste après la montée**, pas au sommet.
+> **Révision du 2026-11-19 — deux étapes disparaissent.**
+>
+> **La segmentation en sections est abandonnée.** Mesurée sur un morceau réel : **36 sections sur 4 min 53**, soit une toutes les 8 secondes. Ce n'est pas de l'information, c'est du bruit. Rien en aval ne s'en servait.
+>
+> **Le point culminant change d'échelle, il ne disparaît pas.** Sur un morceau entier, « le plus grand saut d'énergie » désigne toujours la fin de l'intro, et c'est le mauvais passage (§5.1 bis). Sur les vingt secondes que l'utilisateur a choisies, la même question redevient une question à laquelle le signal sait répondre : où, dans ce passage, ça frappe le plus fort. C'est exactement ce dont la rafale a besoin.
+
+> **Correction issue de l'essai du 2026-11-14.** La première version prenait le *maximum* de l'enveloppe. À l'écoute, l'utilisateur a constaté que le point culminant ressenti se situe **juste après la montée**, pas au sommet.
 >
 > Il a raison, et la raison est structurelle : un morceau de metal passe ses deux dernières minutes à pleine énergie, donc le maximum n'y désigne plus rien. **Ce qui frappe à l'oreille n'est pas « le plus fort », c'est « le moment où ça devient fort »** — la rupture, pas le sommet. Le détecteur cherche donc la plus forte marche montante.
 
@@ -247,7 +294,7 @@ Forme de référence, mesurée à 150 BPM sur 20 s (50 temps) :
 
 - Toute coupe tombe **sur un temps**. Jamais entre deux.
 - **Coupes franches uniquement.** Aucune transition, aucun fondu.
-- La rafale est alignée sur le point culminant détecté en §5.3.
+- La rafale est alignée sur le **point culminant local** (§5.3, point 6) : le plus grand saut d'énergie à l'intérieur de la fenêtre. Si la fenêtre ne contient aucun saut net, la rafale reste à sa place théorique dans la forme.
 - Deux segments consécutifs ne doivent pas se ressembler (§5.2).
 - Un même instant source n'est jamais utilisé deux fois.
 
@@ -259,9 +306,13 @@ Forme de référence, mesurée à 150 BPM sur 20 s (50 temps) :
 
 ### 5.4 bis — Où l'extrait se place dans le morceau
 
-La forme ci-dessus fait 50 temps. Un morceau en fait environ 700. Il faut donc la règle qui dit *où* se placer — elle manquait à la première rédaction.
+La forme ci-dessus fait 50 temps. Un morceau en fait environ 700. Il faut donc la règle qui dit *où* se placer.
 
-**L'extrait s'ancre sur le point culminant.** La rafale de 4 coupes tombe sur le saut d'énergie détecté au §5.3, et l'extrait court de **38 temps avant à 12 temps après** ce point. À 140 BPM : 21,4 s.
+**C'est l'utilisateur qui le dit**, en faisant glisser la fenêtre (§5.1 bis). *Révisé le 2026-11-19 : la rédaction précédente ancrait l'extrait sur le point culminant détecté — « 38 temps avant, 12 temps après » — et cette règle a été rejetée à l'écoute.*
+
+**La longueur, elle, reste fixée par l'app** — décision de l'utilisateur du 2026-11-16, reconduite explicitement le 2026-11-19 : « l'app fixe la durée, je fais glisser la fenêtre ». Elle vaut **50 temps au tempo détecté**, soit la forme du §5.4 bout à bout : 21,4 s à 140 BPM, 20,0 s à 150 BPM.
+
+**Le début de la fenêtre tombe sur un temps**, par calage au relâché. La première coupe du montage est donc sur le rythme par construction, ce que l'entrée franche du son rend audible immédiatement.
 
 **Adaptation au tempo.** 50 temps ne font pas la même durée partout : 14 s à 210 BPM, 37 s à 80 BPM. La fourchette 15–25 s est prioritaire. Hors fourchette, on ajuste en retirant ou en ajoutant des temps **dans le corps et la sortie uniquement** — l'ouverture, la montée et la rafale gardent leur forme, puisque c'est elle que l'utilisateur a validée à l'oreille.
 
@@ -394,18 +445,27 @@ Ce qu'elle ne couvre **pas**, et qui ne se vérifie que sur l'iPhone : le décod
 
 ---
 
-## 9. Suite
+## 9. État d'avancement et suite
 
-1. Validation de ce document par l'utilisateur.
-2. Plan d'exécution (`superpowers:writing-plans`).
-3. Construction, **en mode caveman** à la demande de l'utilisateur, pour limiter le coût en jetons.
+### Fait
 
-**La première séance de code ne construit rien : elle mesure.** Avant toute autre ligne, sur un vrai clip 1080p 60 fps et un vrai mp3, elle doit répondre à cinq questions — risques 1, 2, 6, 8 et 9 :
+**Phase 0 — socle de mesure.** Verdict **go**. Les cinq questions bloquantes ont leur réponse sur l'appareil : H.264 8 bits en entrée, chaîne démux→décode→recadre→encode→mux fonctionnelle, partage vers la galerie avec le son, 38,9 ms par image. Détail et réserves : `2026-11-16-mesures-phase-0.md`.
 
-1. Que remet réellement le sélecteur Photos à Safari — HEVC 10 bits HDR, ou copie transcodée ?
-2. La chaîne complète démux → décode → encode → mux produit-elle un mp4 lisible ?
-3. Le partage iOS accepte-t-il ce mp4 et l'écrit-il dans la galerie ?
-4. L'audio AAC s'encode-t-il via WebCodecs sur Safari ?
-5. Combien coûtent, en temps et en mémoire, trois encodages 1080×1920 ?
+**Phase 1A — moteur audio.** La **grille des temps est acquise** : validée à l'oreille sur plusieurs morceaux, 19 ppm d'erreur de tempo et 2 ms de dérive à 190 s en mesure synthétique. La **règle du point culminant global est rejetée** et remplacée par le §5.1 bis. Détail : `2026-11-16-validation-audio.md`.
 
-Si 2 ou 3 échouent, **la forme de l'app est à rediscuter** — et il vaut mieux le découvrir en une séance qu'en dix.
+### Suite
+
+**Phase 1B — moteur d'analyse vidéo (§5.2),** avec son banc visuel. Indépendante du §5.1 bis : rien de ce qui précède ne la change.
+
+**Phase 1C — écran de choix du passage (§5.1 bis) et moteur de montage (§5.4).** C'est ici que s'appliquent les révisions du 2026-11-19.
+
+### Les réserves que la phase 1 doit lever
+
+Héritées de la phase 0, et toujours ouvertes :
+
+1. **La mémoire n'a jamais été mesurée** (`performance.memory` n'existe pas sur Safari). Le risque 3 reste entier et non chiffré.
+2. **Un seul clip a été traité, jamais cinq.** Le pire cas dimensionnant — 5 clips × 30 s — n'a pas été éprouvé.
+3. **Aucun reel de 20 s n'a été produit en entier.** Les 23 s et 70 s sont extrapolées depuis 5 s réelles.
+4. **La colorimétrie n'a jamais été lue** : la conclusion « pas de HDR » est à remesurer.
+
+La construction se fait **en mode caveman** à la demande de l'utilisateur, pour limiter le coût en jetons.
