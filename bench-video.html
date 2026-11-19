@@ -103,7 +103,12 @@
 
   const row = (k, v) => `<tr><td>${k}</td><td>${v}</td></tr>`;
   const chip = (ok, t) => `<span class="chip ${ok ? 'ok' : 'no'}">${t}</span>`;
-  const n2 = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2));
+  // Les fractions d'exposition se lisent en pourcentage : a deux decimales,
+  // une p90 de 0,004 et une de 0,009 s'affichaient toutes deux « 0.00 », et
+  // les seuils CRAME_MAX / BOUCHE_MAX n'etaient pas reglables du premier coup.
+  const POURCENT = { crame: true, bouche: true };
+  const n2 = (k, v) => (POURCENT[k] ? (v * 100).toFixed(2) + ' %'
+                      : Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2));
 
 
 
@@ -133,22 +138,34 @@
         row('Paquets · décodées · mesurées',
             a.comptes.paquets + ' · ' + a.comptes.decodees + ' · ' + a.comptes.analysees +
             (a.comptes.perdues ? ' · <span style="color:var(--rouge)">' +
-             a.comptes.perdues + ' perdues</span>' : '')) +
+             a.comptes.perdues + ' perdues</span>' : '') +
+            (a.erreur ? '<br><span style="color:var(--rouge)">' + a.erreur + '</span>' : '')) +
         row('Secondes utiles', a.secondesUtiles.toFixed(1) + ' s sur ' +
             a.source.dureeSec.toFixed(1)) +
         row('Analyse', a.msTotal + ' ms<br><span style="color:var(--dimmer)">' +
             Object.entries(a.timings).map(([k, v]) => k + ' ' + v).join(' · ') + '</span>');
 
+      // `forceHorizon` est la parce que DEUX seuils gouvernent l'horizon, et
+      // que celui qui decide si l'horizon est seulement affirme est celui qui
+      // tranche sur de la matiere texturee. Sans sa distribution, l'autre
+      // n'est pas reglable.
       const seuils = {
         nettete: THRESHOLDS.NETTETE_MIN, inclinaison: THRESHOLDS.INCLINAISON_MAX,
+        forceHorizon: THRESHOLDS.HORIZON_FORCE_MIN,
         crame: THRESHOLDS.CRAME_MAX, bouche: THRESHOLDS.BOUCHE_MAX
       };
+      const publies = a.mesures.filter((m) => m.inclinaison !== null).length;
       $('distrib').innerHTML =
         '<tr><th>critère</th><th>min</th><th>méd.</th><th>p90</th><th>max</th><th>seuil</th></tr>' +
         Object.entries(a.stats).map(([k, s]) =>
-          `<tr><td>${k}</td><td>${n2(s.min)}</td><td>${n2(s.median)}</td>` +
-          `<td>${n2(s.p90)}</td><td>${n2(s.max)}</td>` +
+          `<tr><td>${k}</td><td>${n2(k, s.min)}</td><td>${n2(k, s.median)}</td>` +
+          `<td>${n2(k, s.p90)}</td><td>${n2(k, s.max)}</td>` +
           `<td style="color:var(--amber)">${seuils[k]}</td></tr>`).join('') +
+        row('angles mesurés', publies + ' / ' + a.mesures.length +
+            (publies === 0
+              ? '<br><span style="color:var(--rouge)">aucun horizon affirmé : ' +
+                'la colonne inclinaison ne mesure rien, baisser le seuil de force</span>'
+              : '')) +
         '<tr><td>rejets</td><td colspan="5">' +
           Object.entries(a.rejets).map(([k, v]) => k + ' ' + v).join(' · ') + '</td></tr>';
 

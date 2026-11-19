@@ -20,8 +20,14 @@ export function versGris(rgba) {
 // Une image sur combien ? §5.2 demande 20 mesures par seconde : a 10 Hz une
 // secousse de marche de 120 ms passe entre deux mesures, a 20 Hz aucune
 // n'echappe. Jamais moins de 1, sans quoi on sauterait tout le clip.
+//
+// PLANCHER, PAS CIBLE — corrige a la relecture du 2026-11-19. Un arrondi
+// donnait un pas de 2 sur du 30 img/s, soit 15 Hz : sous le plancher, et
+// justement sur la matiere mesuree aujourd'hui (4K 30). On tronque, donc on
+// depasse le plancher au lieu de passer dessous. L'utilisateur a arbitre la
+// qualite contre la vitesse ; mesurer plus souvent va dans son sens.
 export function pasAnalyse(fps, hz) {
-  return Math.max(1, Math.round(fps / hz));
+  return Math.max(1, Math.floor(fps / hz));
 }
 
 // Le cadre d'analyse est TOUJOURS debout et au format du reel : on mesure

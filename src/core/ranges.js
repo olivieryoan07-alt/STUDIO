@@ -9,9 +9,18 @@ const MOTIFS = ['bord', 'nettete', 'horizon', 'crame', 'bouche'];
 // Pas d'echantillonnage reel, deduit des mesures plutot que suppose : la
 // cadence d'analyse depend de la cadence de la source (§5.2) et une plage
 // mal bornee decalerait toutes les coupes du montage.
+//
+// MEDIANE et non moyenne : un seul trou dans la mesure — images perdues dans
+// le callback du decodeur, ou cadence variable — gonflerait la moyenne et
+// allongerait la borne de fin de toutes les plages.
 function pasDeMesure(mesures) {
   if (mesures.length < 2) return 0;
-  return (mesures[mesures.length - 1].timeSec - mesures[0].timeSec) / (mesures.length - 1);
+  const ecarts = [];
+  for (let i = 1; i < mesures.length; i++) {
+    ecarts.push(mesures[i].timeSec - mesures[i - 1].timeSec);
+  }
+  ecarts.sort((a, b) => a - b);
+  return ecarts[ecarts.length >> 1];
 }
 
 export function usableRanges(mesures, durationSec) {
@@ -42,13 +51,29 @@ export function usableRanges(mesures, durationSec) {
 
   // 2. Les mesures retenues consecutives forment une plage ; une seule mesure
   // rejetee au milieu la coupe en deux.
+  //
+  // ET UN TROU DE TEMPS LA COUPE AUSSI. Grouper par indice seul laissait
+  // traverser un intervalle jamais mesure : 40 mesures jusqu'a 2,95 s, un trou
+  // de 5 s, 40 mesures depuis 8,00 s ressortaient en UNE plage de 9 s notee
+  // 1,00 — la mieux notee du clip, dont cinq secondes n'avaient jamais ete
+  // regardees. Le montage y aurait coupe en croyant choisir le meilleur.
+  //
+  // Ce qu'on compare est le trou AU-DELA du pas normal, pas l'ecart brut : une
+  // mesure manquante de temps en temps est banale et ne cache rien. Premier
+  // essai a 1,5 x le pas : sur un vrai fichier a cadence variable, des trous
+  // de 40 ms coupaient le clip en dix plages dont une de 0,75 s. Le seuil est
+  // donc ancre sur l'argument du §5.2 — 120 ms, la secousse de marche — et
+  // non sur un multiple choisi au hasard.
   const groupes = [];
   let courant = null;
   for (let i = 0; i < mesures.length; i++) {
-    if (retenues[i]) {
+    const saut = i > 0
+      && (mesures[i].timeSec - mesures[i - 1].timeSec) - pas > THRESHOLDS.TROU_MAX_SEC;
+    if (retenues[i] && !(saut && courant !== null)) {
       if (courant === null) courant = [i, i]; else courant[1] = i;
-    } else if (courant !== null) {
-      groupes.push(courant); courant = null;
+    } else {
+      if (courant !== null) { groupes.push(courant); courant = null; }
+      if (retenues[i]) courant = [i, i];
     }
   }
   if (courant !== null) groupes.push(courant);

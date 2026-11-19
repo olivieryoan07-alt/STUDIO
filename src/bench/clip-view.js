@@ -22,9 +22,7 @@ export function texteColorimetrie(info) {
   return info.transferCharacteristics;
 }
 
-function courbe(ctx, mesures, champ, x0, y0, largeur, hauteur, plafond, couleur, seuil) {
-  const duree = mesures.length ? mesures[mesures.length - 1].timeSec : 1;
-  const px = (t) => x0 + (duree ? t / duree : 0) * largeur;
+function courbe(ctx, mesures, champ, x0, y0, largeur, hauteur, plafond, couleur, seuil, px) {
   const py = (v) => y0 + hauteur - Math.min(1, v / plafond) * hauteur;
 
   ctx.strokeStyle = '#242b38';
@@ -45,11 +43,16 @@ function courbe(ctx, mesures, champ, x0, y0, largeur, hauteur, plafond, couleur,
   ctx.strokeStyle = couleur;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  mesures.forEach((m, i) => {
+  let pose = false;
+  for (const m of mesures) {
+    const v = m[champ];
+    // une mesure non publiee (angle `null`) interrompt le trait : la tracer a
+    // zero dessinerait une image droite qui n'a jamais ete mesuree
+    if (typeof v !== 'number' || !Number.isFinite(v)) { pose = false; continue; }
     const x = px(m.timeSec);
-    const y = py(Math.abs(m[champ]));
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
+    const y = py(Math.abs(v));
+    if (!pose) { ctx.moveTo(x, y); pose = true; } else ctx.lineTo(x, y);
+  }
   ctx.stroke();
 }
 
@@ -78,13 +81,21 @@ export function dessinerClip(canvas, analyse) {
   const hBandeau = 16;
   let y = marge;
 
+  // UN SEUL AXE DE TEMPS, partage par les courbes, le bandeau de verdict et
+  // les plages. Les trois en avaient un different — le dernier instant mesure,
+  // l'indice de la mesure, la duree du conteneur — et ne coincidaient que si
+  // les mesures etaient parfaitement regulieres jusqu'a la fin du fichier. Un
+  // creux de nettete ne se lisait alors plus au-dessus de la plage qu'il
+  // explique, c'est-a-dire que l'instrument perdait sa fonction.
+  const px = (t) => marge + Math.min(1, Math.max(0, t / duree)) * largeur;
+
   // Le plafond de chaque courbe : deux fois le seuil, OU le neuvieme decile
   // des donnees s'il est plus haut. Un plafond fixe saturait la courbe des
   // qu'un clip depassait largement le seuil — mesure sur un vrai fichier :
   // nettete de 967 a 3237 pour un seuil a 60, soit une ligne droite au
   // plafond, qui ne dit plus rien de la distribution.
   const pistes = [
-    ['nettete', '#5b6bb5', THRESHOLDS.NETTETE_MIN],
+    ['nettete', '#cf4b36', THRESHOLDS.NETTETE_MIN],
     ['inclinaison', '#c08a2e', THRESHOLDS.INCLINAISON_MAX],
     ['crame', '#b5527f', THRESHOLDS.CRAME_MAX],
     ['bouche', '#4f6fb5', THRESHOLDS.BOUCHE_MAX]
@@ -93,25 +104,31 @@ export function dessinerClip(canvas, analyse) {
   for (const [champ, couleur, seuil] of pistes) {
     const p90 = analyse.stats && analyse.stats[champ] ? analyse.stats[champ].p90 : 0;
     const plafond = Math.max(seuil * 2, p90 * 1.1) || 1;
-    courbe(ctx, mesures, champ, marge, y, largeur, hCourbe, plafond, couleur, seuil);
+    courbe(ctx, mesures, champ, marge, y, largeur, hCourbe, plafond, couleur, seuil, px);
     ctx.fillStyle = '#5f6878';
     ctx.font = '10px "SF Mono",Menlo,monospace';
     ctx.fillText(champ + '  max ' + plafond.toFixed(plafond < 10 ? 2 : 0), marge + 4, y + 12);
     y += hCourbe + 4;
   }
 
-  // Bandeau de verdict : une colonne par mesure, couleur du motif de rejet.
-  const pas = largeur / Math.max(1, mesures.length);
+  // Bandeau de verdict : une colonne par mesure, posee sur l'axe de temps,
+  // large jusqu'a la mesure suivante. Un trou dans la mesure laisse donc un
+  // trou visible, au lieu d'etre comble par la colonne voisine.
+  ctx.fillStyle = '#1b2029';
+  ctx.fillRect(marge, y, largeur, hBandeau);
   mesures.forEach((m, i) => {
-    ctx.fillStyle = m.ok ? '#52a06f' : (COULEUR_MOTIF[m.motif] || '#cf4b36');
-    ctx.fillRect(marge + i * pas, y, pas + 1, hBandeau);
-  });
-  // le bord n'est pas porte par les mesures : il est deduit du temps
-  ctx.fillStyle = COULEUR_MOTIF.bord;
-  mesures.forEach((m, i) => {
-    if (m.timeSec < THRESHOLDS.BORD_SEC || m.timeSec >= duree - THRESHOLDS.BORD_SEC) {
-      ctx.fillRect(marge + i * pas, y, pas + 1, hBandeau);
-    }
+    const suivante = i + 1 < mesures.length ? mesures[i + 1].timeSec : duree;
+    const x = px(m.timeSec);
+    // 0,6 px de recouvrement : sans lui, des colonnes larges d'un pixel
+    // laissent un lisere d'antialiasing entre elles et le bandeau se lit
+    // raye. Un vrai trou fait au moins 120 ms, soit plusieurs pixels : il
+    // reste visible.
+    const w = Math.max(1, px(suivante) - x) + 0.6;
+    const auBord = m.timeSec < THRESHOLDS.BORD_SEC
+                || m.timeSec >= duree - THRESHOLDS.BORD_SEC;
+    ctx.fillStyle = auBord ? COULEUR_MOTIF.bord
+                  : (m.ok ? '#52a06f' : (COULEUR_MOTIF[m.motif] || '#cf4b36'));
+    ctx.fillRect(x, y, w, hBandeau);
   });
   y += hBandeau + 4;
 
@@ -119,8 +136,8 @@ export function dessinerClip(canvas, analyse) {
   ctx.fillStyle = '#1b2029';
   ctx.fillRect(marge, y, largeur, hBandeau);
   for (const p of analyse.plages) {
-    const x = marge + (p.startSec / duree) * largeur;
-    const w = Math.max(2, ((p.endSec - p.startSec) / duree) * largeur);
+    const x = px(p.startSec);
+    const w = Math.max(2, px(p.endSec) - x);
     ctx.fillStyle = 'rgba(233,166,64,' + (0.35 + 0.65 * p.note).toFixed(2) + ')';
     ctx.fillRect(x, y, w, hBandeau);
   }

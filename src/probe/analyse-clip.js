@@ -7,7 +7,17 @@ import { decodeFrames } from './decode-frames.js';
 import { scoreFrame } from '../core/frame-score.js';
 import { usableRanges } from '../core/ranges.js';
 
-const CRITERES = ['nettete', 'inclinaison', 'crame', 'bouche'];
+// `forceHorizon` est dans la liste parce que DEUX seuils gouvernent le
+// critere d'horizon : celui qui decide de l'angle tolere, et celui qui decide
+// si l'horizon est seulement affirme. Sans la distribution du second, le
+// premier n'est pas reglable — et sur de la matiere texturee c'est le second
+// qui decide de tout (relecture du 2026-11-19).
+const CRITERES = ['nettete', 'inclinaison', 'forceHorizon', 'crame', 'bouche'];
+
+// Le verdict compare |angle| au seuil : la distribution doit porter sur la
+// meme quantite, sans quoi elle rend une mediane negative face a un seuil
+// positif, et ne permet de regler quoi que ce soit.
+const ABSOLU = { inclinaison: true };
 
 function quantile(triees, p) {
   if (triees.length === 0) return 0;
@@ -20,7 +30,13 @@ function quantile(triees, p) {
 export function statistiques(mesures) {
   const out = {};
   for (const critere of CRITERES) {
-    const triees = mesures.map((m) => m[critere]).sort((a, b) => a - b);
+    // les mesures non publiees (angle `null` faute d'horizon affirme) sont
+    // ecartees : les compter comme des zeros inventerait des images droites
+    const triees = mesures
+      .map((m) => m[critere])
+      .filter((v) => typeof v === 'number' && Number.isFinite(v))
+      .map((v) => (ABSOLU[critere] ? Math.abs(v) : v))
+      .sort((a, b) => a - b);
     out[critere] = {
       min: triees.length ? triees[0] : 0,
       median: quantile(triees, 0.5),
@@ -47,7 +63,7 @@ export async function analyseClip(file, onProgress = () => {}) {
   const info = await chrono('inspection', () => inspectFile(file));
 
   const mesures = [];
-  const { comptes, source } = await chrono('décodage et mesures', () =>
+  const { comptes, source, erreur } = await chrono('décodage et mesures', () =>
     decodeFrames(file, {
       onFrame: ({ gray, w, h, timeSec }) => {
         const r = scoreFrame(gray, w, h);
@@ -66,6 +82,7 @@ export async function analyseClip(file, onProgress = () => {}) {
     info,
     source,
     comptes,
+    erreur,
     mesures,
     plages: groupes.plages,
     rejets: groupes.rejets,

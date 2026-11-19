@@ -12,7 +12,11 @@ test('un gris reste lui-meme', () => {
 
 test('le pas d analyse donne 20 Hz depuis 60 images par seconde', () => {
   assert(pasAnalyse(60, 20) === 3);
-  assert(pasAnalyse(30, 20) === 2);  // 1,5 arrondi a 2, soit 15 Hz reels
+  // RELECTURE FINALE, constat Important 7 : avec un arrondi, 30 img/s donnait
+  // un pas de 2, soit 15 Hz — SOUS le plancher de 20 Hz du §5.2, et sur la
+  // matiere mesuree aujourd'hui (4K 30). Les 20 Hz sont un plancher argumente
+  // (la secousse de marche de 120 ms), pas une cible a approcher.
+  assert(pasAnalyse(30, 20) === 1);  // 30 Hz plutot que 15
   assert(pasAnalyse(24, 20) === 1);  // jamais moins de 1
 });
 

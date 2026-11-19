@@ -49,3 +49,18 @@ test('les plages sortent triees par note decroissante', () => {
   const r = usableRanges(mesures(100, [50], (i) => (i > 50 ? 200 : 50)), 5);
   assert(r.plages[0].note > r.plages[1].note);
 });
+
+// RELECTURE FINALE, constat Critical 1 : le groupement se faisait par INDICE,
+// jamais par temps. Un trou dans la mesure — images perdues dans le callback,
+// ou cadence variable — etait traverse sans etre vu, et l'intervalle jamais
+// mesure ressortait en plage, parfois la mieux notee du clip.
+test('un trou dans la mesure coupe la plage, il ne la traverse pas', () => {
+  const bon = (t) => ({ timeSec: t, nettete: 100, empreinte: new Uint8Array(8),
+                        ok: true, motif: null });
+  const m = [];
+  for (let i = 0; i < 40; i++) m.push(bon(1 + i * 0.05));   // 1,00 -> 2,95 s
+  for (let i = 0; i < 40; i++) m.push(bon(8 + i * 0.05));   // 8,00 -> 9,95 s
+  const r = usableRanges(m, 12);
+  assert(r.plages.length === 2, 'plages ' + r.plages.length);
+  assert(r.secondesUtiles < 4.2, 'secondes utiles ' + r.secondesUtiles);
+});

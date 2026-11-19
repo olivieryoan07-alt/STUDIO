@@ -12,6 +12,11 @@ import { cadreAnalyse, versGris, pasAnalyse } from '../core/gris.js';
 
 const HZ_DEFAUT = 20;      // §5.2
 const LARGEUR_DEFAUT = 192; // §5.2
+// Echeance obligatoire sur le vidage : un codec qui se fige sans rien lever
+// bloquerait cette attente pour toujours, et l'utilisateur verrait une barre
+// de progression immobile — l'anti-objectif 5. roundtrip.js a deja paye cette
+// lecon ; ce module l'avait oubliee (relecture du 2026-11-19).
+const VIDAGE_MS = 15000;
 
 export async function decodeFrames(file, options = {}) {
   const hz = options.hz || HZ_DEFAUT;
@@ -88,17 +93,36 @@ export async function decodeFrames(file, options = {}) {
     });
 
     for (let i = 0; i < samples.length; i++) {
+      // Un decodeur mort fatalement ferait lever `decode()` sur un codec
+      // ferme, et l'utilisateur lirait « closed codec » au lieu de la vraie
+      // panne : le symptome a la place de la cause, exactement l'erreur de la
+      // phase 0. On s'arrete des que l'erreur existe.
+      if (erreur) break;
+
       const s = samples[i];
       decodeur.decode(new EncodedVideoChunk({
         type: s.type, timestamp: s.timestamp, duration: s.duration, data: s.data
       }));
+      // Le paquet est copie par EncodedVideoChunk : on lache notre copie tout
+      // de suite. Le §3 de la conception l'exige — « on ne charge jamais un
+      // fichier entier en memoire » — et garder 30 s de 4K en double est le
+      // plus sur moyen de faire recharger l'onglet sans message.
+      s.data = null;
+
       // la file du decodeur n'est pas infinie : on la laisse se vider
       if (decodeur.decodeQueueSize > 30) {
         await new Promise((r) => setTimeout(r, 0));
         onProgress({ fait: i + 1, total: samples.length });
       }
     }
-    await decodeur.flush();
+
+    const issue = await Promise.race([
+      decodeur.flush().then(() => 'vide', (e) => { erreur = erreur || e; return 'vide'; }),
+      new Promise((r) => setTimeout(() => r('échéance'), VIDAGE_MS))
+    ]);
+    if (issue === 'échéance') {
+      erreur = erreur || new Error('le décodeur ne répond plus après 15 s');
+    }
   } finally {
     try { decodeur.close(); } catch (_) { /* deja ferme */ }
   }
@@ -110,6 +134,10 @@ export async function decodeFrames(file, options = {}) {
 
   return {
     comptes,
+    // L'erreur ressortait seulement quand AUCUNE image n'avait ete analysee :
+    // une passe qui en perdait 200 sur 1000 rendait un resultat d'apparence
+    // normale, et la raison n'existait nulle part. Elle remonte maintenant.
+    erreur: erreur ? erreur.message : null,
     source: { fps, rotation, srcW, srcH, w: cadre.w, h: cadre.h, dureeSec }
   };
 }
