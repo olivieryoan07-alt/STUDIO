@@ -228,6 +228,12 @@ Aucun écran de réglage n'existe nulle part dans ce parcours. Un seul écran de
 - Une **fenêtre de longueur imposée** par l'app (§5.4 bis) se déplace dessus au doigt. Sa longueur ne se règle pas.
 - Au relâché, la fenêtre **se cale sur le temps le plus proche**, et la musique se joue en boucle depuis son début.
 - Deux boutons **`◀ 1 temps`** et **`1 temps ▶`** font le réglage fin.
+- Un **clic discret sur les temps** accompagne l'écoute, et se coupe d'une tape.
+- Une paire **`½×` / `2×`** corrige le tempo si la lecture est à l'octave.
+
+**Pourquoi le clic et le `½× / 2×`.** *Ajoutés le 2026-11-19, validés par l'utilisateur.* Retirer l'indice de confiance (plus bas) laissait l'oreille comme seul contrôle — mais l'oreille n'entendait que la musique nue, jamais la grille, et aucune commande ne permettait de corriger. Or une erreur d'octave ne se contente pas de fausser les coupes : elle **change la longueur de la fenêtre**, donc la durée du reel (§5.4 bis). Le clic rend l'erreur audible en une seconde, la paire la corrige en une tape.
+
+> **Ce n'est pas un réglage de montage** (anti-objectif 1), et l'utilisateur l'a tranché ainsi : `½× / 2×` ne règle rien, il corrige une mesure ratée — comme redresser une photo de travers. Aucun paramètre du montage n'est exposé.
 
 **Pourquoi des boutons, et c'est la décision à surveiller.** *Choix du rédacteur.* Un morceau de 4 min 53 étalé sur 343 px, c'est **1 pixel par seconde** : à 140 BPM, un pixel vaut plus de deux temps. Le doigt ne peut donc viser ni un temps, ni une mesure — la piste sert à **trouver** l'endroit, les boutons à le **régler**. L'approche B réglait cela par une seconde piste zoomée (~8 px/s) ; l'utilisateur l'a écartée. **Si le réglage au bouton s'avère pénible à l'usage, la piste zoomée s'ajoute par-dessus sans rien casser** : c'est un ajout, pas une refonte.
 
@@ -270,13 +276,13 @@ Chaîne validée par la mesure (§6.1) :
 3. Flux spectral → enveloppe des attaques.
 4. Autocorrélation de l'enveloppe → tempo.
 5. Calage de phase → **grille des temps** (le tempo seul ne suffit pas : il faut savoir *où* tombent les temps).
-6. Enveloppe lissée (~2 s) → **point culminant local** : le plus grand saut d'énergie vers le haut **à l'intérieur de la fenêtre choisie** (§5.1 bis). C'est lui, et lui seul, qui place la rafale du §5.4.
+6. Enveloppe lissée (~2 s) → **la courbe d'énergie de l'extrait choisi**, normalisée sur ses propres bornes. C'est elle qui dicte la longueur de chaque plan (§5.4) : elle n'est plus un indicateur, elle est la partition du montage.
 
 > **Révision du 2026-11-19 — deux étapes disparaissent.**
 >
 > **La segmentation en sections est abandonnée.** Mesurée sur un morceau réel : **36 sections sur 4 min 53**, soit une toutes les 8 secondes. Ce n'est pas de l'information, c'est du bruit. Rien en aval ne s'en servait.
 >
-> **Le point culminant change d'échelle, il ne disparaît pas.** Sur un morceau entier, « le plus grand saut d'énergie » désigne toujours la fin de l'intro, et c'est le mauvais passage (§5.1 bis). Sur les vingt secondes que l'utilisateur a choisies, la même question redevient une question à laquelle le signal sait répondre : où, dans ce passage, ça frappe le plus fort. C'est exactement ce dont la rafale a besoin.
+> **Le point culminant comme *point* disparaît aussi, et c'est mieux ainsi.** On n'en a plus besoin : le montage ne cherche plus un instant à marquer, il suit la courbe entière de l'extrait (§5.4). Le détecteur de saut d'énergie survit pour un seul usage, modeste : **ouvrir la fenêtre de choix à un endroit sensé** plutôt que sur du silence (§5.1 bis).
 
 > **Correction issue de l'essai du 2026-11-14.** La première version prenait le *maximum* de l'enveloppe. À l'écoute, l'utilisateur a constaté que le point culminant ressenti se situe **juste après la montée**, pas au sommet.
 >
@@ -286,7 +292,23 @@ Chaîne validée par la mesure (§6.1) :
 
 Choisie par l'utilisateur après écoute comparée de trois logiques (maquette `Banc de rythme STUDIO`). **La densité des coupes suit l'énergie du morceau.**
 
-Forme de référence, mesurée à 150 BPM sur 20 s (50 temps) :
+> **Révision du 2026-11-19, et c'est la plus profonde de la séance.** La rédaction précédente figeait cette logique en une **forme fixe** de 50 temps, parce qu'on ignorait alors *où* dans le morceau on se trouvait : à défaut de connaître la courbe réelle, on en jouait une de mémoire.
+>
+> Ce n'est plus le cas. L'utilisateur choisit l'extrait, et a posé la règle en répondant : *« je choisis l'extrait de la musique, et l'app se cale sur le rythme, tempo, signal de l'extrait »*.
+>
+> **La forme fixe cesse donc d'être la règle et devient le repli.** La règle est celle que l'utilisateur avait validée à l'oreille dès la maquette, appliquée pour de bon : **la longueur de chaque plan est dictée par l'énergie de l'extrait à cet instant.**
+
+**La règle, en une phrase :** l'enveloppe lissée de l'extrait est normalisée sur ses propres minimum et maximum, puis chaque valeur donne la longueur du plan qui commence là — **8 temps au plus creux, 1 temps au plus fort**, avec les valeurs intermédiaires entre les deux.
+
+Ce qui en découle sans qu'on ait à l'écrire :
+
+- La **rafale** n'est plus placée : elle *apparaît*, là où l'énergie culmine. La question « que faire si le pic n'est pas au 38ᵉ temps » n'a plus lieu d'être — le pic est là où il est, et les coupes serrées avec lui.
+- Une **ouverture** longue n'existe que si l'extrait commence calme. S'il démarre dans le mur, le reel démarre dans le mur. C'est ce que l'utilisateur a demandé.
+- Deux extraits différents du même morceau donnent deux montages de **rythmes différents**, sans qu'aucune règle ne le prévoie.
+
+**Le repli, et il n'est pas facultatif.** Si l'extrait est **plat** — écart entre creux et sommet trop faible pour que la normalisation signifie quelque chose, cas banal dans vingt secondes de metal à plein régime — alors la courbe ne porte aucune information et la suivre produirait des plans tous de même longueur : exactement l'**anti-objectif 2**, le montage mécanique. Dans ce cas seulement, la forme de référence ci-dessous s'applique telle quelle.
+
+Forme de référence — validée à l'oreille en maquette, désormais **repli pour extrait plat**, mesurée à 150 BPM sur 20 s (50 temps) :
 
 | Phase | Densité | Effet |
 |---|---|---|
@@ -302,7 +324,7 @@ Forme de référence, mesurée à 150 BPM sur 20 s (50 temps) :
 
 - Toute coupe tombe **sur un temps**. Jamais entre deux.
 - **Coupes franches uniquement.** Aucune transition, aucun fondu.
-- La rafale est alignée sur le **point culminant local** (§5.3, point 6) : le plus grand saut d'énergie à l'intérieur de la fenêtre. Si la fenêtre ne contient aucun saut net, la rafale reste à sa place théorique dans la forme.
+- **Aucun plan ne dure moins d'un temps ni plus de huit.** Ce sont les deux bornes de l'échelle, et elles bornent aussi le repli.
 - Deux segments consécutifs ne doivent pas se ressembler (§5.2).
 - Un même instant source n'est jamais utilisé deux fois.
 
@@ -472,6 +494,10 @@ Ce qu'elle ne couvre **pas**, et qui ne se vérifie que sur l'iPhone : le décod
 ### Suite
 
 **Phase 1B — moteur d'analyse vidéo (§5.2),** avec son banc visuel. Indépendante du §5.1 bis : rien de ce qui précède ne la change.
+
+> **Les réglages se font sur l'iPhone, pas sur le Mac.** *Tranché par l'utilisateur le 2026-11-19 : « je préfère faire des itérations sur mon iPhone, c'est pas grave de faire des allers-retours ».* La matière vidéo ne sera donc pas disponible côté Mac, et aucune fixture synthétique ne dit où placer un seuil de netteté, d'horizon ou d'exposition. **Conséquence sur la forme du plan 1B :** le banc visuel n'est pas un outil de confort, c'est le seul instrument de mesure — il doit afficher, pour chaque clip et chaque plage, la valeur brute de chaque critère **et** le verdict, pour que l'utilisateur renvoie des chiffres et pas des impressions. Les seuils sont des constantes nommées, groupées en un seul endroit, pour qu'un aller-retour coûte une ligne.
+>
+> **Ce qu'il faut demander à l'utilisateur avant la première mesure :** des clips qui contiennent **des images à rejeter** — flou de marche franc, cadre nettement de travers, ciel brûlé, sous-bois bouché. Sur une matière entièrement bonne, aucun seuil n'est réglable et le banc ne prouve rien.
 
 > **La remesure de la colorimétrie ne bloque pas 1B.** *Choix du rédacteur, 2026-11-19.* Elle tient en une station sur l'appareil, à placer en **première tâche** de 1B : elle lit la boîte `colr` des vrais clips et rend sa réponse en une minute. Les seuils d'exposition du §5.2 se règlent ensuite en supposant le SDR ; si la mesure contredit, seul le critère d'exposition est à reprendre, pas le reste du moteur.
 
