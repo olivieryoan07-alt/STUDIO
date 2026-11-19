@@ -146,7 +146,15 @@ Trois règles en découlent, non négociables dans l'implémentation :
 
 > **Conséquence, et elle est la bienvenue : la chaîne entière est sans conversion.** Même définition qu'à la source, même cadence qu'à la source. Ni redimensionnement, ni décimation, ni interpolation nulle part. La seule perte de qualité du projet est celle du réencodage, et elle est inévitable.
 >
-> **Ce que ça coûte :** l'encodage double par rapport à 30 img/s, et il y a trois montages à encoder. C'est le poste de dépense principal de l'app, à mesurer en séance 1 (risque 9). Si la mesure se révélait inacceptable, le repli reste celui du §5.5 — encoder les trois aperçus plus légèrement, puis le seul montage retenu en pleine qualité — **sans jamais toucher aux 60 img/s du fichier final**.
+> **Ce que ça coûte :** l'encodage double par rapport à 30 img/s, et il y a trois montages à encoder. C'est le poste de dépense principal de l'app. Si la mesure se révélait inacceptable, le repli reste celui du §5.5 — encoder les trois aperçus plus légèrement, puis le seul montage retenu en pleine qualité — **sans jamais toucher aux 60 img/s du fichier final**.
+
+> **Précisions du 2026-11-19, après relecture de la conception révisée.**
+>
+> **La source n'est pas toujours à 60 img/s, contrairement à ce que cette section supposait.** La phase 0 a mesuré **30 img/s** sur un clip que l'utilisateur pense avoir filmé en 4K 60 : le sélecteur Photos transcode avant de remettre le fichier, et la cadence fait manifestement partie de ce qu'il change. L'affirmation « même cadence qu'à la source » est donc fausse dans le cas courant d'aujourd'hui.
+>
+> **Règle, et c'est un choix du rédacteur :** la sortie est à **60 img/s quelle que soit l'entrée**. Une source à 30 voit chaque image **tenue deux fois** — jamais interpolée. C'est la seule façon d'honorer l'arbitrage « garde 60 img/s » sans fabriquer d'image qui n'existe pas, et c'est aussi ce qui permet de mélanger un clip 4K/30 et un clip 1080p/60 dans le même montage sans que la cadence de sortie dépende de l'ordre des plans.
+>
+> **Le budget d'attente de 120 s (§5.5) ne déclenche plus rien à lui seul.** À 38,9 ms par image, trois reels de 20 s à 60 img/s coûtent ≈ **140 s**, soit au-dessus du budget. L'utilisateur a arbitré depuis : *« le temps m'est égal, si cela te permet d'avoir une meilleure qualité on rallonge »*. Le repli du §5.5 reste donc en réserve, déclenché par la **mémoire** — la réserve jamais levée de la phase 0 — et non par la durée.
 
 ---
 
@@ -302,6 +310,10 @@ Forme de référence, mesurée à 150 BPM sur 20 s (50 temps) :
 
 **Les trois propositions** partagent la grille des temps, la structure et la forme ci-dessus. Elles diffèrent par **la sélection des segments et l'ordre des clips**. L'utilisateur compare trois montages du même morceau, pas trois théories du montage.
 
+**La dissemblance est une pénalité, pas une interdiction.** *Choix du rédacteur, 2026-11-19.* Prise comme contrainte dure, elle se bloque avec l'anti-objectif 2 : sur de la marche en paysage, deux moments du même clip se ressemblent par nature — même chemin, mêmes arbres, même lumière — donc avec 2 clips et 20 coupes, « jamais deux segments semblables » et « jamais ABABAB » n'ont pas de solution commune. Le sélecteur **minimise une somme de pénalités** (ressemblance entre segments voisins, régularité de l'alternance) plutôt que d'appliquer des règles qui s'excluent. Il préfère donc deux plans un peu semblables du même clip à une alternance mécanique, mais paie ce choix et ne le répète pas vingt fois.
+
+**Chaque clip ajouté apparaît au moins une fois.** *Choix du rédacteur.* L'utilisateur a choisi ses 2 à 5 vidéos ; en écarter une sans le dire serait incompréhensible. Un clip qui note mal est **moins** utilisé, jamais supprimé. Seul le clip *entièrement* inexploitable fait exception, et l'app le dit alors explicitement (§8).
+
 **Pas de rotation stricte entre clips.** La maquette alternait les clips à tour de rôle (1, 2, 3, 1, 2, 3…), mais ce n'est pas ce que l'utilisateur a validé — il a validé le *rythme*. Avec 2 clips, une rotation stricte donnerait ABABAB vingt fois, soit exactement l'anti-objectif 2. La sélection se fait donc **par qualité et par dissemblance** : deux segments du même clip peuvent se suivre s'ils ne se ressemblent pas.
 
 ### 5.4 bis — Où l'extrait se place dans le morceau
@@ -342,6 +354,10 @@ La forme ci-dessus fait 50 temps. Un morceau en fait environ 700. Il faut donc l
 **Ce qu'elle coûte :** trois encodages au lieu d'un, dont deux seront jetés. L'attente est plus longue et **concentrée avant le choix** — arbitrage explicitement accepté par l'utilisateur.
 
 **Repli si la mesure de séance 1 montre que trois encodages 1080p sont trop lourds** (temps ou mémoire) : encoder les trois en 540×960, puis réencoder en 1080×1920 la seule proposition retenue. L'aperçu reste fluide et représentatif, au prix d'une seconde attente après le choix.
+
+**L'écran reste allumé pendant l'attente.** *Choix du rédacteur, 2026-11-19.* L'attente se compte désormais en minutes, et iOS suspend les codecs d'un onglet passé en arrière-plan ou d'un écran verrouillé — l'encodage s'arrêterait au milieu. L'app prend donc un **verrou de réveil** (`navigator.wakeLock`, disponible sur Safari iOS) pour toute la durée de l'analyse et des trois encodages, et le relâche à la fin.
+
+> **Ce que ça ne couvre pas :** l'utilisateur qui quitte volontairement l'app. Dans ce cas la construction repart de zéro au retour. Livrer les propositions une par une pour limiter la perte serait exactement l'anti-objectif 5 (« une attente étalée en plusieurs pauses ») : écarté.
 
 **Enregistrement :** partage iOS avec le fichier → « Enregistrer la vidéo » → galerie.
 
@@ -456,6 +472,8 @@ Ce qu'elle ne couvre **pas**, et qui ne se vérifie que sur l'iPhone : le décod
 ### Suite
 
 **Phase 1B — moteur d'analyse vidéo (§5.2),** avec son banc visuel. Indépendante du §5.1 bis : rien de ce qui précède ne la change.
+
+> **La remesure de la colorimétrie ne bloque pas 1B.** *Choix du rédacteur, 2026-11-19.* Elle tient en une station sur l'appareil, à placer en **première tâche** de 1B : elle lit la boîte `colr` des vrais clips et rend sa réponse en une minute. Les seuils d'exposition du §5.2 se règlent ensuite en supposant le SDR ; si la mesure contredit, seul le critère d'exposition est à reprendre, pas le reste du moteur.
 
 **Phase 1C — écran de choix du passage (§5.1 bis) et moteur de montage (§5.4).** C'est ici que s'appliquent les révisions du 2026-11-19.
 
