@@ -49,6 +49,7 @@
     await import('./laplacian.test.js');
     await import('./horizon.test.js');
     await import('./exposition.test.js');
+    await import('./empreinte.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
