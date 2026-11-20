@@ -13,7 +13,12 @@ import { empreinte } from './empreinte.js';
 export const THRESHOLDS = {
   NETTETE_MIN: 60,         // variance du laplacien, image grise de 192 px
   INCLINAISON_MAX: 8,      // degres
-  HORIZON_FORCE_MIN: 0.12, // en dessous, l'horizon n'est pas un motif de rejet
+  HORIZON_FORCE_MIN: 3,    // en MULTIPLES DU HASARD : en dessous, l'horizon
+                           // n'est pas affirme, donc pas un motif de rejet.
+                           // Mesure du 2026-11-20 sur quatre vrais clips :
+                           // mediane 1,8 et maximum 4,8 fois le hasard, donc
+                           // 3 retient a peu pres les images du dernier
+                           // cinquieme — celles qui ont vraiment une ligne.
   NIVEAU_CRAME: 250,
   NIVEAU_BOUCHE: 8,
   CRAME_MAX: 0.08,

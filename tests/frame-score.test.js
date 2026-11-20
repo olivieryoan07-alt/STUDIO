@@ -1,5 +1,5 @@
 import { test, assert } from './harness.js';
-import { scoreFrame } from '../src/core/frame-score.js';
+import { scoreFrame, THRESHOLDS } from '../src/core/frame-score.js';
 import { grayImage, flou, horizonIncline, bruit } from './fixtures-image.js';
 
 test('une image nette, droite et bien exposee passe', () => {
@@ -45,7 +45,8 @@ test('aucun seuil chiffre ne vit hors de THRESHOLDS', async () => {
 // nombre, c'est laisser croire a une mesure qui n'a pas eu lieu.
 test('aucun angle n est publie quand l horizon n est pas affirme', () => {
   const r = scoreFrame(bruit(96, 96, 3), 96, 96);
-  assert(r.forceHorizon < 0.12, 'force ' + r.forceHorizon);
+  // on compare au seuil lui-meme : il sera regle, le test ne doit pas perimer
+  assert(r.forceHorizon < THRESHOLDS.HORIZON_FORCE_MIN, 'force ' + r.forceHorizon);
   assert(r.inclinaison === null, 'angle publie a tort : ' + r.inclinaison);
 });
 

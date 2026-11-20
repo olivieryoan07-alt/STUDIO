@@ -10,9 +10,21 @@
 // (brouillard, mur, ciel uni) renverrait un angle tire du bruit, et ferait
 // rejeter une image parfaitement bonne. En dessous du seuil, l'inclinaison
 // n'est pas un motif de rejet — c'est `frame-score.js` qui en decide.
+//
+// `strength` SE LIT EN MULTIPLES DU HASARD : 1 veut dire « aucune direction
+// privilegiee », 5 veut dire « cinq fois plus de contours dans ces trois
+// degres que si tout etait quelconque ». Une simple part de l'energie totale
+// ne se lisait pas : mesuree sur quatre vrais clips le 2026-11-20, elle
+// plafonnait a 0,08 pour un seuil a 0,12, et le critere d'horizon ne s'est
+// declenche sur aucune des 409 images. Le nombre ne disait pas non plus a
+// partir de quand il etait grand, puisqu'il depend du nombre de classes.
 
 const CLASSES = 90;   // une classe par degre, sur ]-45, 45]
 const DEMI = CLASSES / 2;
+// La fenetre lue fait 3 classes, soit 3 degres sur les 180 que peut prendre
+// l'orientation d'une ligne. Une image sans direction privilegiee en met donc
+// cette part-la par hasard : c'est l'unite dans laquelle `strength` se lit.
+const PART_DU_HASARD = 3 / 180;
 
 export function tilt(gray, w, h) {
   if (w < 3 || h < 3) return { angleDeg: 0, strength: 0 };
@@ -66,6 +78,6 @@ export function tilt(gray, w, h) {
 
   return {
     angleDeg: dominante - DEMI + 0.5 + correction,
-    strength: (avant + poids[dominante] + apres) / total
+    strength: ((avant + poids[dominante] + apres) / total) / PART_DU_HASARD
   };
 }
