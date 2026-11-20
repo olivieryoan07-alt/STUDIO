@@ -9,11 +9,24 @@ function mesures(n, mauvaises = [], nettete = () => 100) {
   }));
 }
 
-test('la premiere et la derniere seconde sont toujours jetees', () => {
-  const r = usableRanges(mesures(100), 5);           // 5 s, tout bon
+test('sur un clip long, la premiere et la derniere seconde sont jetees', () => {
+  const r = usableRanges(mesures(200), 10);          // 10 s, tout bon
   assert(r.plages.length === 1, 'plages ' + r.plages.length);
-  assert(r.plages[0].startSec >= 1 && r.plages[0].endSec <= 4, JSON.stringify(r.plages[0]));
+  assert(r.plages[0].startSec >= 1 && r.plages[0].endSec <= 9, JSON.stringify(r.plages[0]));
   assert(r.rejets.bord === 40, 'bord ' + r.rejets.bord);
+});
+
+// MESURE DU 2026-11-20 : l'utilisateur filme en randonnee des clips de 3 a
+// 5 secondes, pas de 20 a 30 comme la conception le supposait. Jeter une
+// seconde a chaque bout d'un clip de 3 secondes en retire les deux tiers —
+// et c'est bien ce qui s'est passe : sur quatre clips courts, le bord etait
+// le premier motif de rejet et deux d'entre eux ne rendaient aucune plage
+// alors que rien n'y avait ete juge mauvais.
+test('sur un clip court, le bord n en mange pas les deux tiers', () => {
+  const r = usableRanges(mesures(60), 3);            // 3 s, tout bon
+  assert(r.plages.length === 1, 'plages ' + r.plages.length);
+  assert(r.secondesUtiles > 1.9, 'secondes utiles ' + r.secondesUtiles);
+  assert(r.rejets.bord < 24, 'bord ' + r.rejets.bord);
 });
 
 test('une image rejetee coupe la plage en deux', () => {
@@ -27,10 +40,22 @@ test('une plage trop courte disparait', () => {
   assert(usableRanges(mesures(100, mauvaises), 5).plages.length === 0);
 });
 
-test('un clip de moins de deux secondes ne donne aucune plage', () => {
-  const r = usableRanges(mesures(30), 1.5);
-  assert(r.plages.length === 0);
+// Review Focus 1, REVISE le 2026-11-20. L'attente d'origine — « un clip de
+// moins de deux secondes ne donne aucune plage » — decoulait du bord d'une
+// seconde pleine. Avec le bord plafonne a 15 %, un clip de 1,5 s garde une
+// seconde du milieu, et c'est de la vraie matiere : la rendre est juste. Ce
+// qui reste a garantir, c'est qu'un clip trop court pour porter le moindre
+// plan n'invente rien et ne leve rien.
+test('un clip trop court pour porter un plan ne rend aucune plage', () => {
+  const r = usableRanges(mesures(12), 0.6);   // 0,6 s : il reste 0,45 s
+  assert(r.plages.length === 0, 'plages ' + r.plages.length);
   assert(r.secondesUtiles === 0);
+});
+
+test('un clip d une seconde et demie garde sa seconde du milieu', () => {
+  const r = usableRanges(mesures(30), 1.5);
+  assert(r.plages.length === 1, 'plages ' + r.plages.length);
+  assert(r.secondesUtiles > 0.9, 'secondes utiles ' + r.secondesUtiles);
 });
 
 test('un clip entierement rejete rend une liste vide, pas une exception', () => {

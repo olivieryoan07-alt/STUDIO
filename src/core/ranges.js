@@ -30,14 +30,18 @@ export function usableRanges(mesures, durationSec) {
   if (mesures.length === 0) return { plages: [], rejets, secondesUtiles: 0 };
 
   const pas = pasDeMesure(mesures);
-  const finDeZone = durationSec - THRESHOLDS.BORD_SEC;
+  // Le bord est une duree fixe PLAFONNEE a une part du clip : une seconde sur
+  // un clip de vingt, c'est la secousse du bouton ; une seconde sur un clip de
+  // trois, c'est le clip.
+  const bord = Math.min(THRESHOLDS.BORD_SEC, durationSec * THRESHOLDS.BORD_PART_MAX);
+  const finDeZone = durationSec - bord;
 
   // 1. Le bord d'abord, et sans appel : §5.2 jette la premiere et la derniere
   // seconde quelle que soit la qualite — c'est la ou l'on appuie sur le bouton.
   // Une mesure a l'instant t couvre [t, t+pas[ : elle appartient a la derniere
   // seconde des qu'elle l'atteint, d'ou le `>=`.
   const retenues = mesures.map((m) => {
-    if (m.timeSec < THRESHOLDS.BORD_SEC || m.timeSec >= finDeZone) {
+    if (m.timeSec < bord || m.timeSec >= finDeZone) {
       rejets.bord++;
       return false;
     }

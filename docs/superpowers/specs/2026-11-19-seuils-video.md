@@ -100,3 +100,108 @@ et 13 % du clip B.
   absente. La réserve de la phase 0 ne peut donc pas être levée par la
   lecture — elle est close autrement : il n'y a pas de métadonnée de
   colorimétrie à lire, donc rien qui annonce du HDR.
+
+---
+
+# Deuxième série — 2026-11-20, v0.23.0, deux clips étiquetés
+
+L'utilisateur a cette fois dit **lequel est bon et lequel est raté**. C'est ce
+qui manquait à la première série, et c'est ce qui permet de trancher.
+
+| | min | méd. | p90 | max | seuil |
+|---|---|---|---|---|---|
+| **netteté — clip BON** | 5,62 | **108** | 294 | 556 | 60 |
+| **netteté — clip RATÉ** | 4,24 | **19,4** | **51,0** | 439 | 60 |
+| inclinaison — bon | 0,33 | 0,52 | 44,50 | 44,50 | 8 |
+| inclinaison — raté | 0,50 | 0,54 | 44,50 | 44,50 | 8 |
+| force d'horizon — bon | 0,74 | 1,92 | 3,59 | 10,38 | 3 |
+| force d'horizon — raté | 0,24 | 2,59 | 4,42 | 7,03 | 3 |
+| cramé — bon / raté | 0 | 0 / 0 | 1,82 / 1,59 % | 4,16 / 7,85 % | 8 % |
+| bouché — bon / raté | 0 | 0,28 / 0 % | 1,59 / 0 % | 6,62 / 1,83 % | 20 % |
+
+| | mesures | angles publiés | rejets | plages |
+|---|---|---|---|---|
+| **bon** | 435 | 69 | bord 45 · netteté 113 | **5**, de 0,64 à 4,39 s |
+| **raté** | 619 | 259 | bord 45 · netteté 534 · horizon 9 | **aucune** |
+
+## 1. Le seuil de netteté est validé
+
+**Il sépare les deux clips sans ambiguïté.** Le neuvième décile du clip raté
+vaut **51** : neuf images sur dix y sont sous le seuil. La médiane du clip bon
+vaut **108**, presque le double du seuil. Entre les deux, une fenêtre de
+51 à 108 où n'importe quelle valeur aurait séparé les deux clips.
+
+**`NETTETE_MIN` reste à 60**, au bas de cette fenêtre. C'est le choix
+conservateur, et il est justifié par la rareté de la matière (§2 ci-dessous) :
+mieux vaut garder une image limite que jeter une seconde qu'on n'a pas.
+
+Le verdict suit : **86 % du clip raté est rejeté pour flou**, et il ne rend
+aucune plage. Le clip bon en rejette 29 % et rend cinq plages, dont une de
+4,39 s.
+
+## 2. Les clips font 3 à 5 secondes, pas 20 à 30
+
+*Information donnée par l'utilisateur le 2026-11-20 : « généralement quand je
+filme en rando je fais des clips de 3-5 s ». Les clips longs des deux séries
+ont été tournés exprès pour l'essai.*
+
+**La conception supposait l'inverse** (§3 : « max 20-30 s »), et deux règles en
+dépendaient.
+
+**La règle du bord devient destructrice.** Une seconde à chaque bout d'un clip
+de trois secondes en retire les deux tiers. Mesuré sur la première série : le
+bord y était le **premier motif de rejet des quatre clips**, et deux d'entre
+eux ne rendaient aucune plage alors que rien n'y avait été jugé mauvais — le
+clip D affichait 59 rejets de bord et **0 rejet de netteté**.
+
+**Correction, v0.23.0 :** le bord reste d'une seconde mais ne dépasse jamais
+**15 % de la durée** à chaque bout. Un clip de 20 s perd sa seconde pleine,
+conformément au §5.2 ; un clip de 3 s n'en perd que 0,45. La secousse du
+bouton est de toute façon attrapée par la netteté — la deuxième série vient de
+le prouver en rejetant 86 % d'un clip bougé.
+
+**L'arithmétique du §5.4, elle, ne tient plus**, et aucune ligne de code ne la
+réparera. Voir « Question ouverte » ci-dessous.
+
+## 3. Le critère d'horizon reste non validé
+
+La nouvelle échelle fait son travail : **69 angles publiés sur 435** pour le
+clip bon, 259 sur 619 pour le raté, là où la première série en publiait zéro.
+
+Mais **aucun des deux clips n'est de travers**, donc rien n'est prouvé. Et une
+anomalie subsiste : l'inclinaison affiche **exactement 44,50° en p90 et en
+maximum sur les deux clips**. C'est la valeur de la classe de bord de
+l'histogramme — le signe que l'orientation dominante est tombée hors de la
+plage mesurable et s'est accumulée à sa limite, pas qu'un horizon penche
+vraiment à 44°.
+
+**Il manque un clip net et visiblement de travers.** Tant qu'on ne l'a pas, le
+seuil de 8° ne peut pas être posé, et on ne sait pas si l'anomalie à 44,5° est
+gênante ou inoffensive. **Ne pas toucher au code de ce critère avant** : la
+première série a déjà montré ce que coûte un réglage à l'aveugle.
+
+---
+
+## Question ouverte, qui bloque la phase 1C
+
+Avec des clips de 3 à 5 secondes, il n'y a **pas assez de matière** pour un
+reel de 20 secondes.
+
+Le calcul, avec les chiffres mesurés ci-dessus : un clip de 4 s perd 1,2 s de
+bord, puis ~29 % du reste au flou — il reste **environ 2 secondes
+exploitables**. Le §5.4 demande une vingtaine de coupes sur 20 secondes, sans
+jamais réutiliser le même instant source.
+
+| clips ajoutés | matière exploitable | suffit pour |
+|---|---|---|
+| 2 | ≈ 4 s | rien |
+| 5 | ≈ 10 s | un reel de 10 s |
+| 10 | ≈ 20 s | un reel de 20 s |
+
+Le §3 limite l'ajout à **2 à 5 vidéos**. Trois issues, et c'est à
+l'utilisateur de choisir :
+
+1. **accepter davantage de clips** — monter la limite à une dizaine ;
+2. **raccourcir le reel** — 10 à 12 s au lieu de 20 ;
+3. **autoriser la réutilisation** d'un même instant source, ce qui contredit
+   une règle invariante du §5.4.

@@ -124,8 +124,8 @@ export function dessinerClip(canvas, analyse) {
     // raye. Un vrai trou fait au moins 120 ms, soit plusieurs pixels : il
     // reste visible.
     const w = Math.max(1, px(suivante) - x) + 0.6;
-    const auBord = m.timeSec < THRESHOLDS.BORD_SEC
-                || m.timeSec >= duree - THRESHOLDS.BORD_SEC;
+    const bord = Math.min(THRESHOLDS.BORD_SEC, duree * THRESHOLDS.BORD_PART_MAX);
+    const auBord = m.timeSec < bord || m.timeSec >= duree - bord;
     ctx.fillStyle = auBord ? COULEUR_MOTIF.bord
                   : (m.ok ? '#52a06f' : (COULEUR_MOTIF[m.motif] || '#cf4b36'));
     ctx.fillRect(x, y, w, hBandeau);

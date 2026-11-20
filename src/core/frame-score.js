@@ -31,7 +31,14 @@ export const THRESHOLDS = {
                            // passer entre deux mesures : au-dela, l'intervalle
                            // n'a pas ete regarde et la plage est coupee.
   PLAGE_MIN_SEC: 0.5,      // un plan dure au moins un temps : 0,43 s a 140 BPM
-  BORD_SEC: 1.0            // §5.2 : jeter la premiere et la derniere seconde
+  BORD_SEC: 1.0,           // §5.2 : jeter la premiere et la derniere seconde
+  BORD_PART_MAX: 0.15      // ... mais jamais plus de cette part de la duree a
+                           // chaque bout. Mesure du 2026-11-20 : l'utilisateur
+                           // filme des clips de 3 a 5 s, pas de 20 a 30, et la
+                           // seconde pleine en retirait les deux tiers. La
+                           // secousse du bouton est de toute facon attrapee
+                           // par la nettete, qui a rejete 86 % d'un clip
+                           // bouge — ce bord n'est qu'une ceinture de plus.
 };
 
 // VALEURS DE DEPART ASSUMEES. Aucune n'a ete mesuree contre la vraie matiere.
