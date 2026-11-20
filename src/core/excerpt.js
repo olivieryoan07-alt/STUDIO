@@ -10,14 +10,20 @@
 // UNIQUEMENT le corps puis la sortie : l'ouverture, la montee et la rafale
 // gardent leur forme, puisque c'est elle qui a ete validee.
 
-const OPENING = 8;
-const RISE = 8;
-const BODY = 22;
-const BURST = 4;
-const OUTRO = 8;
+// Forme de reference, en temps. REDUITE DE MOITIE le 2026-11-20 : le reel
+// passe de 15-25 s a 7-12 s, parce que la matiere reelle de l'utilisateur —
+// 5 a 10 clips de 3 a 5 s par randonnee — n'en offre pas davantage sans
+// reutiliser le meme instant source, ce que le §5.4 interdit. Les cinq
+// phases gardent leurs proportions : la rafale tombe toujours aux trois
+// quarts de l'extrait.
+const OPENING = 4;
+const RISE = 4;
+const BODY = 10;
+const BURST = 2;
+const OUTRO = 4;
 
-export const MIN_SEC = 15;
-export const MAX_SEC = 25;
+export const MIN_SEC = 7;
+export const MAX_SEC = 12;
 
 export function anchorExcerpt({ durationSec, grid, climaxSec }) {
   const beatSec = grid.beatSec;
@@ -43,7 +49,7 @@ export function anchorExcerpt({ durationSec, grid, climaxSec }) {
     );
   }
 
-  const full = OPENING + RISE + BODY + BURST + OUTRO; // 50
+  const full = OPENING + RISE + BODY + BURST + OUTRO; // 24
   const beatCount = Math.min(Math.max(full, minBeats), maxBeats, maxByDuration);
   const durSec = beatCount * beatSec;
 
