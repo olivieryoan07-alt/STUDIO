@@ -57,6 +57,7 @@
     await import('./clip-view.test.js');
     await import('./fenetre.test.js');
     await import('./click-track.test.js');
+    await import('./decoupe.test.js');
     const r = await runTests(document.getElementById('out'));
     summary.textContent = `${r.passed} passed, ${r.failed} failed`;
     summary.className = r.failed === 0 ? 'ok' : 'ko';
