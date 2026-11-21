@@ -11,17 +11,24 @@
 import { distance } from './empreinte.js';
 import { THRESHOLDS } from './frame-score.js';
 
+const QUALITE = 1;       // une plage mal notee coute
+const RESSEMBLANCE = 2;  // ressembler au plan precedent coute le double
+const MEME_CLIP = 0.6;   // rester sur le meme clip coute, sans etre interdit
+
 export const POIDS = {
-  QUALITE: 1,       // une plage mal notee coute
-  RESSEMBLANCE: 2,  // ressembler au plan precedent coute le double
-  MEME_CLIP: 0.6,   // rester sur le meme clip coute, sans etre interdit
-  // Un clip DEJA EMPLOYE coute tant qu'il reste un clip jamais vu. La valeur
-  // est choisie strictement au-dessus du cout maximal des trois autres
-  // termes (1 + 2 + 0,6 = 3,6) : un clip inedit gagne donc toujours, ce qui
-  // est exactement la regle du §5.4 — « avec 5 a 8 clips, tous
-  // apparaissent ». Sans ce terme, le glouton n'en employait que deux sur
-  // cinq (mesure du 2026-11-21).
-  DEJA_VU: 4
+  QUALITE,
+  RESSEMBLANCE,
+  MEME_CLIP,
+  // Un clip DEJA EMPLOYE coute tant qu'il reste un clip jamais vu, ce qui
+  // fait qu'un clip inedit gagne toujours — exactement la regle du §5.4,
+  // « avec 5 a 8 clips, tous apparaissent ». Sans ce terme, le glouton n'en
+  // employait que deux sur cinq (mesure du 2026-11-21).
+  //
+  // La valeur est DERIVEE et non figee : elle doit depasser la somme des
+  // trois autres, et les trois autres sont des reglages a faire a l'ecoute.
+  // Ecrite en dur a 4, passer RESSEMBLANCE de 2 a 3 aurait retire la
+  // garantie en silence (relecture du 2026-11-21).
+  DEJA_VU: QUALITE + RESSEMBLANCE + MEME_CLIP + 0.4
 };
 
 // `candidat` et `precedent` : { clip, note, empreinte }. `precedent` vaut
@@ -40,10 +47,12 @@ export function coutCandidat(candidat, precedent) {
   return cout;
 }
 
-// Combien de creneaux on essaie par plage. Borne la recherche : sans elle,
-// une plage de six secondes decoupee au temps offrirait des dizaines de
-// departs quasi identiques, pour rien.
-const CRENEAUX_MAX = 4;
+// Combien de creneaux on essaie par plage, et ils sont ETALES sur toute la
+// plage. Pris aux quatre premiers multiples de la duree du plan, ils ne
+// donnaient acces qu'aux premieres secondes : une plage de 20 s ne
+// nourrissait que quatre plans et le moteur accusait la matiere d'un manque
+// qui venait de son propre plafond (relecture du 2026-11-21).
+export const CRENEAUX_MAX = 24;
 
 // Meme recette de PRNG que `tests/fixtures-audio.js` : les trois
 // propositions doivent etre reproductibles, sinon « trois autres » rendrait
@@ -77,9 +86,11 @@ export function choisirPlans({ longueurs, beatSec, clips, graine = 0 }) {
 
     clips.forEach((c, ci) => {
       for (const r of c.plages) {
-        const n = Math.min(CRENEAUX_MAX, Math.floor((r.endSec - r.startSec) / durSec));
+        const longueur = r.endSec - r.startSec;
+        const n = Math.min(CRENEAUX_MAX, Math.floor(longueur / durSec));
+        const pas = n > 1 ? (longueur - durSec) / (n - 1) : 0;
         for (let j = 0; j < n; j++) {
-          const startSec = r.startSec + j * durSec;
+          const startSec = r.startSec + j * pas;
           if (chevauche(pris[ci], startSec, startSec + durSec)) continue;
           candidats.push({
             clip: ci, nom: c.nom, note: r.note, empreinte: r.empreinte, startSec
@@ -97,7 +108,7 @@ export function choisirPlans({ longueurs, beatSec, clips, graine = 0 }) {
     // redevient libre.
     const resteInedit = employes.size < clips.length;
     const cout = (c) => coutCandidat(c, precedent)
-                      + (resteInedit && employes.has(c.nom) ? POIDS.DEJA_VU : 0);
+                      + (resteInedit && employes.has(c.clip) ? POIDS.DEJA_VU : 0);
     candidats.sort((a, b) => cout(a) - cout(b));
     // Graine 0 prend toujours le meilleur : c'est la proposition de
     // reference. Les autres tirent parmi les trois meilleurs — c'est ce qui
@@ -106,14 +117,17 @@ export function choisirPlans({ longueurs, beatSec, clips, graine = 0 }) {
     const choisi = candidats[k];
 
     pris[choisi.clip].push([choisi.startSec, choisi.startSec + durSec]);
-    employes.add(choisi.nom);
+    employes.add(choisi.clip);
     plans.push({ nom: choisi.nom, startSec: choisi.startSec, durSec, temps: L });
     precedent = choisi;
   }
 
+  // L'identite d'un clip est son INDICE, pas son nom : deux fichiers
+  // homonymes sont deux clips, et le second doit etre signale s'il ne sert
+  // pas (relecture du 2026-11-21).
   return {
     plans,
-    clipsInutilises: clips.map((c) => c.nom).filter((n) => !employes.has(n)),
+    clipsInutilises: clips.filter((_, i) => !employes.has(i)).map((c) => c.nom),
     manque
   };
 }

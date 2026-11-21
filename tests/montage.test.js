@@ -38,3 +38,20 @@ test('c est l energie de l EXTRAIT qui commande, pas celle du morceau', () => {
   assert(JSON.stringify(a[0].longueurs) !== JSON.stringify(b[0].longueurs),
          'les deux courbes donnent le meme rythme : ' + JSON.stringify(a[0].longueurs));
 });
+
+// RELECTURE FINALE, constat Important 5 : `durSec` valait la somme des
+// longueurs VOULUES, sans egard pour les plans qu'on n'a pas pu remplir. La
+// proposition annoncait 6,86 s pour 2,57 s de plans — et c'est `durSec` que
+// la phase 1C-3 prendra pour caler le son.
+test('la duree annoncee est celle des plans reellement poses', () => {
+  const maigre = [{ nom: 'seul', plages: [{ startSec: 0, endSec: 1.2, note: 0.9,
+                                            empreinte: new Uint8Array(8) }] }];
+  const p = monter({ extrait: extraitType, env: envMorceau, rate: 50, offsetSec: 0,
+                     clips: maigre });
+  for (const prop of p) {
+    const somme = prop.plans.reduce((a, x) => a + x.durSec, 0);
+    assert(Math.abs(prop.durSec - somme) < 1e-6,
+           'annonce ' + prop.durSec.toFixed(2) + ', pose ' + somme.toFixed(2) +
+           ', manque ' + prop.manque);
+  }
+});

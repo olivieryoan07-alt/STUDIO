@@ -91,7 +91,7 @@
   import { createBench } from './src/bench/click-track.js';
   import { mmss } from './src/core/format.js';
 
-  window.STUDIO_VERSION = '0.29.0';
+  window.STUDIO_VERSION = '0.30.0';
   const $ = (id) => document.getElementById(id);
   $('version').textContent = 'v' + window.STUDIO_VERSION;
 
@@ -109,7 +109,17 @@
   function lirePassage() {
     try {
       const brut = sessionStorage.getItem('studio.passage');
-      if (brut) { source = 'choisi dans l’écran de choix'; return JSON.parse(brut); }
+      if (brut) {
+        const p = JSON.parse(brut);
+        // La fenetre est signee par la duree du morceau : gardee sur un autre
+        // morceau, elle ne veut rien dire — et l'annoncer « choisie » ferait
+        // juger le rythme sur un passage que l'utilisateur n'a pas designe.
+        if (Math.abs((p.dureeMorceau || 0) - audio.durationSec) < 0.05) {
+          source = 'choisi dans l’écran de choix';
+          return p;
+        }
+        source = 'passage gardé pour un AUTRE morceau — ignoré';
+      }
     } catch (_) { /* stockage indisponible */ }
     source = 'suggestion par défaut — passe par l’écran de choix pour juger pour de vrai';
     const f = fenetreInitiale({
@@ -129,9 +139,14 @@
     $('infos').innerHTML =
       `<tr><td>Passage</td><td>${mmss(extrait.startSec)} → ${mmss(extrait.startSec + extrait.durSec)}</td></tr>` +
       `<tr><td>Origine</td><td>${source}</td></tr>` +
-      `<tr><td>Reel</td><td style="color:var(--amber)">${props[0].durSec.toFixed(2)} s · ${extrait.beatCount} temps</td></tr>` +
+      `<tr><td>Reel</td><td style="color:var(--amber)">${props[0].durSec.toFixed(2)} s · ${extrait.beatCount} temps` +
+        (Math.abs(props[0].durSec - props[0].voulueSec) > 0.01
+          ? `<br><span style="color:var(--rouge)">au lieu de ${props[0].voulueSec.toFixed(2)} s : ` +
+            `${props[0].manque} plan(s) sans matière</span>` : '') + '</td></tr>' +
       `<tr><td>Tempo</td><td>${extrait.bpm.toFixed(1)} BPM</td></tr>` +
-      `<tr><td>Rythme</td><td>${props[0].longueurs.join(' · ')} → ${props[0].longueurs.length} plans</td></tr>` +
+      `<tr><td>Rythme</td><td>${props[0].longueurs.join(' · ')} → ${props[0].plans.length} plans posés` +
+        (props[0].plans.length !== props[0].longueurs.length
+          ? ` sur ${props[0].longueurs.length}` : '') + '</td></tr>' +
       `<tr><td>Clips</td><td>${clips.length} · ${clips.reduce((a, c) => a + c.plages.length, 0)} plages</td></tr>`;
 
     $('propositions').innerHTML = props.map((p, i) => `

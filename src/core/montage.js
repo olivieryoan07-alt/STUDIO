@@ -19,12 +19,19 @@ export function monter({ extrait, env, rate, offsetSec = 0, clips, graines = [0,
   const envExtrait = env.slice(i0, Math.max(i0 + 1, i1));
 
   const longueurs = longueursDePlans(envExtrait, rate, beatSec, extrait.beatCount);
-  const durSec = longueurs.reduce((a, b) => a + b, 0) * beatSec;
+  const voulueSec = longueurs.reduce((a, b) => a + b, 0) * beatSec;
 
-  return graines.map((graine) => ({
-    graine,
-    longueurs,
-    durSec,
-    ...choisirPlans({ longueurs, beatSec, clips, graine })
-  }));
+  return graines.map((graine) => {
+    const r = choisirPlans({ longueurs, beatSec, clips, graine });
+    // `durSec` est la duree REELLEMENT tenue, pas celle qu'on visait : c'est
+    // elle que la phase 1C-3 prendra pour caler le son, et un plan qui n'a
+    // pas trouve de matiere y deviendrait une image arretee sur du vide.
+    return {
+      graine,
+      longueurs,
+      voulueSec,
+      durSec: r.plans.reduce((a, p) => a + p.durSec, 0),
+      ...r
+    };
+  });
 }

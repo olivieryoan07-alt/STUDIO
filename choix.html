@@ -102,7 +102,7 @@
   import { createBench } from './src/bench/click-track.js';
   import { mmss } from './src/core/format.js';
 
-  window.STUDIO_VERSION = '0.29.0';
+  window.STUDIO_VERSION = '0.30.0';
   const $ = (id) => document.getElementById(id);
   $('version').textContent = 'v' + window.STUDIO_VERSION;
 
@@ -278,7 +278,10 @@
   $('garder').addEventListener('click', () => {
     const passage = {
       startSec: fenetre.startSec, durSec: fenetre.durSec, beatCount: fenetre.beatCount,
-      bpm: 60 / grille.beatSec, offsetSec: grille.offsetSec
+      bpm: 60 / grille.beatSec, offsetSec: grille.offsetSec,
+      // la duree du morceau sert de signature : une fenetre gardee sur un
+      // morceau ne veut rien dire sur un autre
+      dureeMorceau: analyse.durationSec
     };
     try { sessionStorage.setItem('studio.passage', JSON.stringify(passage)); } catch (_) {}
     $('garde').textContent = 'gardé : ' + mmss(passage.startSec) + ' → ' +

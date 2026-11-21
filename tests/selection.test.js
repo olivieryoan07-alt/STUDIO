@@ -92,3 +92,51 @@ test('deux graines donnent deux montages differents', () => {
   const b = choisirPlans({ ...arg, graine: 7 });
   assert(JSON.stringify(a.plans) !== JSON.stringify(b.plans), 'les deux montages sont identiques');
 });
+
+// RELECTURE FINALE, constat Important 6 : la valeur de DEJA_VU n'a de sens
+// que parce qu'elle depasse la somme des trois autres. C'etait ecrit dans un
+// commentaire et nulle part ailleurs — regler RESSEMBLANCE a 3 aurait retire
+// la garantie du §5.4 en silence.
+test('un clip inedit gagne toujours, quelles que soient les autres ponderations', () => {
+  assert(POIDS.DEJA_VU > POIDS.QUALITE + POIDS.RESSEMBLANCE + POIDS.MEME_CLIP,
+         'DEJA_VU ' + POIDS.DEJA_VU + ' contre ' +
+         (POIDS.QUALITE + POIDS.RESSEMBLANCE + POIDS.MEME_CLIP));
+});
+
+test('tous les clips apparaissent meme quand leurs empreintes se ressemblent', () => {
+  // empreintes voisines : le terme de ressemblance est alors maximal partout
+  const proches = Array.from({ length: 6 }, (_, c) => ({
+    nom: 'p' + c,
+    plages: [{ startSec: 0, endSec: 3, note: 0.9,
+               empreinte: (() => { const a = new Uint8Array(8); a[0] = c; return a; })() }]
+  }));
+  const r = choisirPlans({ longueurs: [2, 2, 2, 2, 2, 2, 2, 2], beatSec: 0.43,
+                           clips: proches, graine: 0 });
+  assert(r.clipsInutilises.length === 0, 'inutilises : ' + JSON.stringify(r.clipsInutilises));
+});
+
+// RELECTURE FINALE, constat Important 4 : les creneaux etaient pris aux
+// quatre PREMIERS multiples de la duree du plan, donc seules les premieres
+// secondes de chaque plage etaient atteignables. Une plage de 20 s ne
+// nourrissait que quatre plans, et le moteur accusait la matiere d'un manque
+// qui venait de son propre plafond.
+test('une plage longue nourrit tout le reel', () => {
+  const r = choisirPlans({
+    longueurs: [1, 1, 1, 1, 1, 1, 1, 1], beatSec: 0.43, graine: 0,
+    clips: [{ nom: 'long', plages: [{ startSec: 0, endSec: 20, note: 0.9,
+                                      empreinte: new Uint8Array(8) }] }]
+  });
+  assert(r.manque === 0, 'manque ' + r.manque + ' alors que la plage fait 20 s');
+});
+
+// RELECTURE FINALE, constat mineur 1 remonte en important : l'identite d'un
+// clip etait son nom. Deux clips homonymes et le second n'etait ni employe ni
+// signale — l'app assurait que tout avait servi alors que non.
+test('deux clips homonymes restent deux clips', () => {
+  const homonymes = [0, 1].map(() => ({
+    nom: 'IMG_1234',
+    plages: [{ startSec: 0, endSec: 1, note: 0.9, empreinte: new Uint8Array(8) }]
+  }));
+  const r = choisirPlans({ longueurs: [2], beatSec: 0.43, clips: homonymes, graine: 0 });
+  assert(r.clipsInutilises.length === 1, 'inutilises : ' + JSON.stringify(r.clipsInutilises));
+});
