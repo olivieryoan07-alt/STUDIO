@@ -52,9 +52,20 @@ test('un tempo non detecte ne fait ni division par zero ni boucle', () => {
   }
 });
 
-test('le nombre de temps vaut 24 aux tempos courants', () => {
-  for (const bpm of [120, 140, 150, 180]) {
-    assert(nombreDeTemps(grille(bpm), 300) === 24, bpm + ' BPM');
+test('la fenetre fait 16 temps des que la fourchette le permet', () => {
+  for (const bpm of [140, 150, 180, 190]) {
+    assert(nombreDeTemps(grille(bpm), 300) === 16, bpm + ' BPM');
+  }
+  // sous 134 BPM, seize temps depasseraient 7 s : le plafond rogne, et c'est
+  // la fourchette qui prime sur la forme (§5.4 bis)
+  assert(nombreDeTemps(grille(120), 300) === 14, '120 BPM');
+});
+
+test('quel que soit le tempo, la fenetre tient dans 5-7 s', () => {
+  for (const bpm of [80, 100, 120, 140, 160, 180, 190]) {
+    const g = grille(bpm);
+    const d = nombreDeTemps(g, 300) * g.beatSec;
+    assert(d >= 5 - 1e-6 && d <= 7 + 1e-6, bpm + ' BPM -> ' + d.toFixed(2) + ' s');
   }
 });
 
@@ -89,23 +100,23 @@ test('doubler le tempo double le nombre de temps et garde la phase', () => {
 });
 
 // Review Focus 3
-test('apres un changement d octave la fenetre reste dans 7-12 s', () => {
+test('apres un changement d octave la fenetre reste dans 5-7 s', () => {
   for (const [bpm, facteur] of [[70, 2], [280, 0.5], [140, 2], [140, 0.5]]) {
     const g = changerOctave(grille(bpm), facteur);
     const f = redimensionner({ startSec: 30, durSec: 10, beatCount: 24 },
                              { durationSec: 300, grid: g });
-    assert(f.durSec >= 7 - 1e-6 && f.durSec <= 12 + 1e-6,
+    assert(f.durSec >= 5 - 1e-6 && f.durSec <= 7 + 1e-6,
            bpm + ' x' + facteur + ' -> ' + f.durSec.toFixed(2) + ' s');
   }
 });
 
 test('une octave impossible est refusee en nommant la duree', () => {
   let msg = '';
-  // 8 s de morceau, tempo divise par deux : plus moyen d'en tirer 7 s entieres
-  try { redimensionner({ startSec: 0, durSec: 7, beatCount: 24 },
-                       { durationSec: 8, grid: changerOctave(grille(40), 0.5) }); }
+  // 15 BPM : un temps de 4 s, donc aucun nombre entier de temps entre 5 et 7
+  try { redimensionner({ startSec: 0, durSec: 6, beatCount: 16 },
+                       { durationSec: 300, grid: changerOctave(grille(30), 0.5) }); }
   catch (e) { msg = e.message; }
-  assert(msg.includes('8') && msg.includes('7'), 'message : ' + msg);
+  assert(msg.includes('15') && msg.includes('5') && msg.includes('7'), 'message : ' + msg);
 });
 
 test('pixel et seconde sont reciproques', () => {
@@ -123,7 +134,7 @@ test('hors du canevas, le temps reste dans le morceau', () => {
 // quatrieme tape la fenetre tombait a 6,86 s, a la cinquieme a 0,00 s — sous
 // le plancher dur du §5.4 bis — et « Garder ce passage » l'ecrivait sans
 // broncher. Le mecanisme de refus existait pourtant : il n'etait pas declenche.
-test('des demi-tempos repetes sont refuses avant de sortir de 7-12 s', () => {
+test('des demi-tempos repetes sont refuses avant de sortir de 5-7 s', () => {
   let g = grille(140);
   let f = { startSec: 30, durSec: 10, beatCount: 24 };
   let refus = 0;
@@ -135,7 +146,7 @@ test('des demi-tempos repetes sont refuses avant de sortir de 7-12 s', () => {
     // faite ainsi, verte sur un code faux.
     try { nf = redimensionner(f, { durationSec: 300, grid: essai }); }
     catch (e) { refus++; continue; }
-    assert(nf.durSec >= 7 - 1e-6 && nf.durSec <= 12 + 1e-6,
+    assert(nf.durSec >= 5 - 1e-6 && nf.durSec <= 7 + 1e-6,
            'tape ' + (i + 1) + ' -> ' + nf.durSec.toFixed(2) + ' s');
     f = nf; g = essai;
   }

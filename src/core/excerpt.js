@@ -10,20 +10,22 @@
 // UNIQUEMENT le corps puis la sortie : l'ouverture, la montee et la rafale
 // gardent leur forme, puisque c'est elle qui a ete validee.
 
-// Forme de reference, en temps. REDUITE DE MOITIE le 2026-11-20 : le reel
-// passe de 15-25 s a 7-12 s, parce que la matiere reelle de l'utilisateur —
-// 5 a 10 clips de 3 a 5 s par randonnee — n'en offre pas davantage sans
-// reutiliser le meme instant source, ce que le §5.4 interdit. Les cinq
-// phases gardent leurs proportions : la rafale tombe toujours aux trois
-// quarts de l'extrait.
-const OPENING = 4;
-const RISE = 4;
-const BODY = 10;
+// Forme de reference, en temps. REDUITE DEUX FOIS, et toujours pour la meme
+// raison : la matiere disponible.
+//   2026-11-20 : de 50 a 24 temps (15-25 s -> 7-12 s), quand l'utilisateur a
+//     precise qu'il filme 5 a 10 clips de 3 a 5 s par randonnee.
+//   2026-11-21 : de 24 a 16 temps (7-12 s -> 5-7 s), apres qu'il a essaye
+//     l'ecran de choix sur son telephone et juge la duree trop longue.
+// Seize temps, c'est quatre mesures. Les cinq phases gardent leurs
+// proportions : la rafale tombe toujours aux trois quarts de l'extrait.
+const OPENING = 3;
+const RISE = 3;
+const BODY = 6;
 const BURST = 2;
-const OUTRO = 4;
+const OUTRO = 2;
 
-export const MIN_SEC = 7;
-export const MAX_SEC = 12;
+export const MIN_SEC = 5;
+export const MAX_SEC = 7;
 
 // Combien de temps dure la fenetre, et le refus quand c'est impossible.
 // EXTRAIT de `anchorExcerpt` le 2026-11-21 : l'ecran de choix en a besoin
@@ -65,7 +67,7 @@ export function nombreDeTemps(grid, durationSec) {
     );
   }
 
-  const full = OPENING + RISE + BODY + BURST + OUTRO; // 24
+  const full = OPENING + RISE + BODY + BURST + OUTRO; // 16
   return Math.min(Math.max(full, minBeats), maxBeats, maxByDuration);
 }
 

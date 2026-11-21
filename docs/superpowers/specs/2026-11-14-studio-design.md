@@ -11,9 +11,11 @@
 
 STUDIO est un monteur de reels automatique, à usage strictement personnel, qui tourne sur un iPhone 12 mini.
 
-L'utilisateur lui donne **5 à 10 vidéos** et un morceau de musique. STUDIO rend un reel vertical de **7 à 12 secondes**, coupé sur le rythme, prêt à publier.
+L'utilisateur lui donne **5 à 10 vidéos** et un morceau de musique. STUDIO rend un reel vertical de **5 à 7 secondes**, coupé sur le rythme, prêt à publier.
 
 > **Révisé le 2026-11-20, et c'est la mesure qui l'a imposé.** La première rédaction annonçait 2 à 5 vidéos pour un reel de 15 à 25 s. L'utilisateur a précisé qu'en randonnée il filme **des clips de 3 à 5 secondes, cinq à dix par sortie** — les clips longs des séances d'essai avaient été tournés exprès. Or un clip de 4 s ne rend qu'environ **2 secondes exploitables** une fois le bord retiré et le flou écarté (`2026-11-19-seuils-video.md`). Deux clips ne nourrissent donc pas vingt secondes de montage, et le §5.4 interdit de réutiliser deux fois le même instant. Le reel passe à 7–12 s, le nombre de clips à 5–10.
+>
+> **Resserré une seconde fois le 2026-11-21, à 5–7 s.** L'utilisateur a essayé l'écran de choix sur son téléphone et jugé la fenêtre trop longue : *« on va réduire 5-7 s »*. La forme de référence passe de 24 temps à **16 — quatre mesures**.
 
 **Le pourquoi, et il commande tout le reste :** l'utilisateur veut publier sur Instagram mais ne veut ni apprendre à monter, ni monter lui-même. STUDIO n'est donc pas un gain de temps sur une tâche qu'il sait faire — c'est ce qui rend la publication possible tout court.
 
@@ -94,7 +96,7 @@ Chacun suffit. Les trois ensemble ferment définitivement la porte du natif.
 - Vidéos : prises dans la galerie Photos, déjà en vertical.
 - **Longueur des clips : 3 à 5 s, cinq à dix par randonnée.** *Précisé par l'utilisateur le 2026-11-20 ; la rédaction précédente disait « 20 à 30 s », qui était son maximum et non son habitude.* Aucun plafond imposé par l'app. Pire cas dimensionnant : **10 clips × 5 s = 50 s de matière à analyser**, soit ≈ 18 s d'analyse à la vitesse mesurée (0,35 × le temps réel).
 - **Matière exploitable, mesurée et non supposée :** un clip de 4 s perd 1,2 s de bord (15 % à chaque bout) puis ≈ 29 % du reste au flou. Il reste **≈ 2 s par clip**. Cinq clips de 3 s en donnent ≈ 7,5 s ; dix clips de 5 s en donnent ≈ 25 s.
-- Sortie : 9:16, **7 à 12 s**, durée fixée par l'app (décision validée, fourchette révisée le 2026-11-20).
+- Sortie : 9:16, **5 à 7 s**, durée fixée par l'app (décision validée, fourchette resserrée le 2026-11-21).
 
 ### La matière source : 4K aujourd'hui, 1080p demain
 
@@ -238,7 +240,9 @@ Aucun écran de réglage n'existe nulle part dans ce parcours. Un seul écran de
 
 > **Ce n'est pas un réglage de montage** (anti-objectif 1), et l'utilisateur l'a tranché ainsi : `½× / 2×` ne règle rien, il corrige une mesure ratée — comme redresser une photo de travers. Aucun paramètre du montage n'est exposé.
 
-**Pourquoi des boutons, et c'est la décision à surveiller.** *Choix du rédacteur.* Un morceau de 4 min 53 étalé sur 343 px, c'est **1 pixel par seconde** : à 140 BPM, un pixel vaut plus de deux temps. Le doigt ne peut donc viser ni un temps, ni une mesure — la piste sert à **trouver** l'endroit, les boutons à le **régler**. L'approche B réglait cela par une seconde piste zoomée (~8 px/s) ; l'utilisateur l'a écartée. **Si le réglage au bouton s'avère pénible à l'usage, la piste zoomée s'ajoute par-dessus sans rien casser** : c'est un ajout, pas une refonte.
+> **Écran validé sur l'appareil le 2026-11-21.** Trois questions posées à l'utilisateur, trois réponses : il trouve son passage du premier coup rien qu'en regardant la piste ; les deux boutons suffisent au réglage fin ; la durée était trop longue, d'où le resserrement à 5–7 s. **L'approche A est donc définitive et la piste zoomée de l'approche B ne sera pas construite.**
+
+**Pourquoi des boutons, et c'était la décision à surveiller.** *Choix du rédacteur.* Un morceau de 4 min 53 étalé sur 343 px, c'est **1 pixel par seconde** : à 140 BPM, un pixel vaut plus de deux temps. Le doigt ne peut donc viser ni un temps, ni une mesure — la piste sert à **trouver** l'endroit, les boutons à le **régler**. L'approche B réglait cela par une seconde piste zoomée (~8 px/s) ; l'utilisateur l'a écartée. **Si le réglage au bouton s'avère pénible à l'usage, la piste zoomée s'ajoute par-dessus sans rien casser** : c'est un ajout, pas une refonte.
 
 **Position d'ouverture :** le plus grand saut d'énergie du morceau — l'ancienne règle, rétrogradée au rang de simple suggestion de départ. Elle a le mérite de ne jamais ouvrir sur du silence.
 
@@ -315,13 +319,13 @@ Forme de référence — validée à l'oreille en maquette, désormais **repli p
 
 | Phase | Temps | Densité | Effet |
 |---|---|---|---|
-| Ouverture | 4 | 1 plan de 4 temps | un plan large qui s'installe |
-| Montée | 4 | 1 coupe / 2 temps | ça se met en marche |
-| Corps | 10 | 1 coupe / 2 temps | le régime de croisière |
+| Ouverture | 3 | 1 plan de 3 temps | un plan large qui s'installe |
+| Montée | 3 | 1 coupe / 2 temps | ça se met en marche |
+| Corps | 6 | 1 coupe / 2 temps | le régime de croisière |
 | **Point culminant** | **2** | **2 coupes d'1 temps** | la rafale sèche |
-| Sortie | 4 | 1 plan de 4 temps | ça retombe |
+| Sortie | 2 | 1 plan de 2 temps | ça retombe |
 
-**11 plans sur 24 temps**, de 0,43 s à 1,71 s à 140 BPM.
+**8 plans sur 16 temps**, de 0,43 s à 1,29 s à 140 BPM.
 
 **Règles invariantes :**
 
@@ -331,11 +335,11 @@ Forme de référence — validée à l'oreille en maquette, désormais **repli p
 - Deux segments consécutifs ne doivent pas se ressembler (§5.2).
 - Un même instant source n'est jamais utilisé deux fois.
 
-> **Conséquence arithmétique, refaite le 2026-11-20.** La forme fait désormais **11 plans sur 24 temps**. Avec 5 à 10 clips, le moteur ne revient donc que **1 à 2 fois** dans chaque vidéo — contre 6 à 8 dans la rédaction précédente.
+> **Conséquence arithmétique, refaite le 2026-11-21.** La forme fait désormais **8 plans sur 16 temps**. Avec 5 à 10 clips, le moteur **ne revient au plus qu'une fois** dans chaque vidéo, et n'en utilise parfois que huit sur dix.
 >
 > **C'est une simplification considérable du moteur d'analyse vidéo** : il n'a plus à extraire de chaque clip plusieurs plages distinctes et dissemblables, seulement à désigner la meilleure, parfois la deuxième. Les cinq plages que le clip de la deuxième série a rendues suffisent largement.
 >
-> **Mais le cas serré existe.** Cinq clips de 3 s donnent ≈ 7,5 s exploitables, ce qui ne nourrit pas un reel de 12 s. *Choix du rédacteur :* l'app **choisit la durée la plus longue de la fourchette 7–12 s que la matière disponible permet** sans réutiliser un instant. Ce n'est pas un réglage — l'utilisateur ne décide toujours rien — c'est l'app qui refuse de promettre plus qu'elle n'a.
+> **Le cas serré a disparu.** Cinq clips de 3 s donnent ≈ 7,5 s exploitables pour un reel de 5 à 7 s : la matière suffit même au plus bas de la fourchette. La règle du 2026-11-20 — l'app choisit la durée la plus longue que la matière permet — reste en vigueur, mais elle ne mordra qu'en cas de clips exceptionnellement mauvais.
 
 **Les trois propositions** partagent la grille des temps, la structure et la forme ci-dessus. Elles diffèrent par **la sélection des segments et l'ordre des clips**. L'utilisateur compare trois montages du même morceau, pas trois théories du montage.
 
@@ -351,11 +355,11 @@ La forme ci-dessus fait 24 temps. Un morceau en fait environ 700. Il faut donc l
 
 **C'est l'utilisateur qui le dit**, en faisant glisser la fenêtre (§5.1 bis). *Révisé le 2026-11-19 : la rédaction précédente ancrait l'extrait sur le point culminant détecté — « 38 temps avant, 12 temps après » — et cette règle a été rejetée à l'écoute.*
 
-**La longueur, elle, reste fixée par l'app** — décision de l'utilisateur du 2026-11-16, reconduite explicitement le 2026-11-19 : « l'app fixe la durée, je fais glisser la fenêtre ». Elle vaut **24 temps au tempo détecté**, soit la forme du §5.4 bout à bout : 10,3 s à 140 BPM, 9,6 s à 150 BPM.
+**La longueur, elle, reste fixée par l'app** — décision de l'utilisateur du 2026-11-16, reconduite explicitement le 2026-11-19 : « l'app fixe la durée, je fais glisser la fenêtre ». Elle vaut **16 temps au tempo détecté**, soit la forme du §5.4 bout à bout : 6,9 s à 140 BPM, 6,4 s à 150 BPM.
 
 **Le début de la fenêtre tombe sur un temps**, par calage au relâché. La première coupe du montage est donc sur le rythme par construction, ce que l'entrée franche du son rend audible immédiatement.
 
-**Adaptation au tempo.** 24 temps ne font pas la même durée partout : 6,9 s à 210 BPM, 18 s à 80 BPM. La fourchette **7–12 s** est prioritaire.
+**Adaptation au tempo.** 16 temps ne font pas la même durée partout : 4,6 s à 210 BPM, 12 s à 80 BPM. La fourchette **5–7 s** est prioritaire. Mesuré après resserrement : 6,8 s à 80 BPM (9 temps), 7,0 s à 120 (14 temps), 6,9 s à 140 (16), 5,1 s à 190 (16).
 
 > **Point ouvert pour la phase 1C, relevé à la mesure du 2026-11-20.** Aux tempos lents, le rognage écrase la sortie : à 90 BPM la fenêtre tombe à 18 temps et la rafale se retrouve au 17ᵉ, soit un seul temps de sortie au lieu de quatre — « ça retombe » disparaît. Le rognage doit répartir la perte entre le corps *et* la sortie, pas la faire porter à la seule sortie. Sans effet sur la matière de l'utilisateur, dont le metal et le rock alternatif tiennent entre 120 et 180 BPM, où la forme reste entière. Hors fourchette, on ajuste en retirant ou en ajoutant des temps **dans le corps et la sortie uniquement** — l'ouverture, la montée et la rafale gardent leur forme, puisque c'est elle que l'utilisateur a validée à l'oreille.
 
