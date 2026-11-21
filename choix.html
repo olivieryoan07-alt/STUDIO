@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10131a">
+<link rel="icon" href="icon-192.png">
+<title>Choix du passage — STUDIO</title>
+<style>
+  :root{
+    --ground:#10131a; --panel:#191e28; --line:#2e3747; --line-soft:#242b38;
+    --txt:#e6e9f0; --dim:#8d97a8; --dimmer:#5f6878;
+    --amber:#e9a640; --rouge:#cf4b36; --vert:#52a06f;
+    --mono:"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:max(18px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+  .wrap{max-width:640px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:10px}
+  h1{font-size:22px;letter-spacing:.12em;text-transform:uppercase;margin:0;font-weight:700}
+  .version{font-family:var(--mono);font-size:12px;color:var(--dimmer)}
+  .tagline{color:var(--dim);margin:2px 0 18px;font-size:13.5px}
+  .card{border:1px solid var(--line);border-radius:3px;background:var(--panel);
+        padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--amber);margin:0 0 9px}
+  .card > p{margin:0 0 11px;color:var(--dim);font-size:13.5px}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;
+        font-variant-numeric:tabular-nums}
+  td{padding:4px 0;border-bottom:1px solid var(--line-soft)}
+  td:first-child{color:var(--dim);padding-right:12px}
+  td:last-child{text-align:right}
+  tr:last-child td{border-bottom:0}
+  input[type=file]{display:block;font-family:var(--mono);font-size:12.5px;
+                   color:var(--dim);margin-bottom:10px;max-width:100%}
+  input[type=file]::file-selector-button{
+    font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11px;font-weight:600;
+    background:transparent;color:var(--amber);border:1px solid var(--amber);
+    border-radius:2px;padding:7px 13px;margin-right:10px}
+  .status{font-family:var(--mono);font-size:12px;color:var(--amber);margin:10px 0 0;min-height:1.2em}
+  .status.err{color:var(--rouge)}
+  /* sans `touch-action: none`, le geste fait defiler la page sur l'iPhone
+     au lieu de deplacer la fenetre */
+  canvas{width:100%;display:block;margin-top:12px;border-radius:2px;
+         touch-action:none;cursor:ew-resize}
+  .row{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0 0;align-items:center}
+  button{font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11.5px;
+         font-weight:600;background:transparent;color:var(--amber);
+         border:1px solid var(--amber);border-radius:2px;padding:9px 14px;cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.on{background:var(--amber);color:#171208}
+  button.large{flex:1;padding:12px 14px;font-size:13px}
+  .sep{flex-basis:100%;height:0}
+  .note{font-family:var(--mono);font-size:11px;color:var(--dimmer);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Le passage</h1>
+    <span class="version" id="version"></span>
+  </header>
+  <p class="tagline">Fais glisser la fenêtre là où le morceau décolle.</p>
+
+  <section class="card">
+    <h2>Le morceau</h2>
+    <p>Tout reste sur l'appareil.</p>
+    <input type="file" id="afile" accept="audio/*,.mp3,.m4a,.wav">
+    <p class="status" id="stat"></p>
+
+    <canvas id="piste"></canvas>
+
+    <div class="row">
+      <button id="gauche" disabled>◀ 1 temps</button>
+      <button id="ecouter" disabled>Écouter</button>
+      <button id="droite" disabled>1 temps ▶</button>
+      <div class="sep"></div>
+      <button id="demi" disabled>½×</button>
+      <button id="double" disabled>2×</button>
+      <button id="clic" class="on" disabled>Clic</button>
+    </div>
+
+    <table id="infos"></table>
+  </section>
+
+  <section class="card">
+    <h2>Garder</h2>
+    <div class="row">
+      <button id="garder" class="large" disabled>Garder ce passage</button>
+    </div>
+    <p class="note" id="garde"></p>
+  </section>
+</div>
+
+<script type="module">
+  import { analyseTrack } from './src/probe/analyse-track.js';
+  import { dessinerPiste } from './src/app/piste-view.js';
+  import { fenetreInitiale, decalerDeTemps, changerOctave, redimensionner,
+           placer, tempsPourX, xPourTemps } from './src/core/fenetre.js';
+  import { createBench } from './src/bench/click-track.js';
+  import { mmss } from './src/core/format.js';
+
+  window.STUDIO_VERSION = '0.26.0';
+  const $ = (id) => document.getElementById(id);
+  $('version').textContent = 'v' + window.STUDIO_VERSION;
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx = null, bench = null;
+  let analyse = null, grille = null, fenetre = null;
+  let avecClic = true, enLecture = false;
+
+  const COMMANDES = ['gauche', 'ecouter', 'droite', 'demi', 'double', 'clic', 'garder'];
+  const activer = (oui) => COMMANDES.forEach((id) => { $(id).disabled = !oui; });
+
+  function erreur(message) {
+    $('stat').className = 'status err';
+    $('stat').textContent = message;
+  }
+
+  function redessiner() {
+    dessinerPiste($('piste'), {
+      env: analyse.env, rate: analyse.rate, offsetSec: analyse.offsetSec,
+      durationSec: analyse.durationSec, fenetre
+    });
+    const fin = fenetre.startSec + fenetre.durSec;
+    $('infos').innerHTML =
+      `<tr><td>Passage</td><td>${mmss(fenetre.startSec)} → ${mmss(fin)}</td></tr>` +
+      `<tr><td>Durée du reel</td><td style="color:var(--amber)">${fenetre.durSec.toFixed(1)} s · ${fenetre.beatCount} temps</td></tr>` +
+      `<tr><td>Tempo</td><td>${(60 / grille.beatSec).toFixed(1)} BPM</td></tr>`;
+  }
+
+  // La lecture repart du debut de la fenetre, en boucle, sans ton culminant :
+  // cet ecran n'affiche aucun point culminant (§5.1 bis).
+  function jouer() {
+    if (!ctx) { ctx = new AC(); bench = createBench(ctx); }
+    if (ctx.state === 'suspended') ctx.resume();
+    bench.play(analyse.buffer, grille, -1, fenetre.startSec,
+               fenetre.startSec + fenetre.durSec,
+               { clics: avecClic, boucle: true, tonCulminant: false });
+    enLecture = true;
+    $('ecouter').textContent = 'Arrêter';
+    $('ecouter').classList.add('on');
+  }
+
+  function arreter() {
+    if (bench) bench.stop();
+    enLecture = false;
+    $('ecouter').textContent = 'Écouter';
+    $('ecouter').classList.remove('on');
+  }
+
+  $('afile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    arreter();
+    activer(false);
+    $('stat').className = 'status';
+    $('infos').innerHTML = '';
+    $('garde').textContent = '';
+
+    try {
+      analyse = await analyseTrack(file, (p) => { $('stat').textContent = p.phase + '…'; });
+      grille = analyse.grid;
+      // Peut lever si le morceau est plus court que l'extrait (§5.1 bis) :
+      // on le dit, et l'ecran reste utilisable pour un autre fichier.
+      fenetre = fenetreInitiale({
+        durationSec: analyse.durationSec, grid: grille, climaxSec: analyse.climax.timeSec
+      });
+      redessiner();
+      activer(true);
+      $('stat').textContent = 'fais glisser la fenêtre, puis écoute.';
+    } catch (err) {
+      erreur(err.message);
+    }
+  });
+
+  // --- deplacement au doigt -------------------------------------------------
+  // On passe par `placer` pendant tout le glissement, pas seulement au
+  // relache : a un pixel par seconde, le calage sur un temps est inferieur au
+  // demi-pixel, donc invisible — et ca evite un second chemin de code.
+  let saisi = false, ecart = 0;
+
+  const xLocal = (e) => e.clientX - $('piste').getBoundingClientRect().left;
+
+  function deplacerVers(x) {
+    const L = $('piste').clientWidth;
+    const t = tempsPourX(x - ecart, L, analyse.durationSec);
+    fenetre = { ...fenetre, startSec: placer(t, {
+      durationSec: analyse.durationSec, grid: grille, durSec: fenetre.durSec }) };
+    redessiner();
+  }
+
+  $('piste').addEventListener('pointerdown', (e) => {
+    if (!fenetre) return;
+    const L = $('piste').clientWidth;
+    const x = xLocal(e);
+    const xDebut = xPourTemps(fenetre.startSec, L, analyse.durationSec);
+    const xFin = xPourTemps(fenetre.startSec + fenetre.durSec, L, analyse.durationSec);
+    // saisir n'importe où hors de la fenêtre la recentre sous le doigt
+    ecart = (x >= xDebut && x <= xFin) ? x - xDebut : (xFin - xDebut) / 2;
+    saisi = true;
+    $('piste').setPointerCapture(e.pointerId);
+    deplacerVers(x);
+    e.preventDefault();
+  });
+
+  $('piste').addEventListener('pointermove', (e) => {
+    if (saisi) { deplacerVers(xLocal(e)); e.preventDefault(); }
+  });
+
+  $('piste').addEventListener('pointerup', (e) => {
+    if (!saisi) return;
+    saisi = false;
+    $('piste').releasePointerCapture(e.pointerId);
+    jouer();
+  });
+
+  // --- commandes ------------------------------------------------------------
+  const decaler = (n) => {
+    fenetre = decalerDeTemps(fenetre, n, {
+      durationSec: analyse.durationSec, grid: grille });
+    redessiner();
+    if (enLecture) jouer();
+  };
+  $('gauche').addEventListener('click', () => decaler(-1));
+  $('droite').addEventListener('click', () => decaler(1));
+
+  $('ecouter').addEventListener('click', () => { enLecture ? arreter() : jouer(); });
+
+  $('clic').addEventListener('click', () => {
+    avecClic = !avecClic;
+    $('clic').classList.toggle('on', avecClic);
+    if (enLecture) jouer();
+  });
+
+  // Une octave impossible garde la precedente : mieux vaut un tempo discutable
+  // qu'un ecran sans fenetre.
+  const octave = (facteur) => {
+    const essai = changerOctave(grille, facteur);
+    try {
+      fenetre = redimensionner(fenetre, { durationSec: analyse.durationSec, grid: essai });
+      grille = essai;
+      $('stat').className = 'status';
+      $('stat').textContent = 'tempo corrigé.';
+      redessiner();
+      if (enLecture) jouer();
+    } catch (err) {
+      erreur(err.message + ' — tempo inchangé');
+    }
+  };
+  $('demi').addEventListener('click', () => octave(0.5));
+  $('double').addEventListener('click', () => octave(2));
+
+  // C'est la phase 1C-3 qui viendra lire cette cle ; aucune autre page ne l'ecrit.
+  $('garder').addEventListener('click', () => {
+    const passage = {
+      startSec: fenetre.startSec, durSec: fenetre.durSec, beatCount: fenetre.beatCount,
+      bpm: 60 / grille.beatSec, offsetSec: grille.offsetSec
+    };
+    try { sessionStorage.setItem('studio.passage', JSON.stringify(passage)); } catch (_) {}
+    $('garde').textContent = 'gardé : ' + mmss(passage.startSec) + ' → ' +
+      mmss(passage.startSec + passage.durSec) + ' · ' + passage.durSec.toFixed(1) +
+      ' s · ' + passage.bpm.toFixed(1) + ' BPM';
+  });
+</script>
+</body>
+</html>

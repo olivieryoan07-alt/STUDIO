@@ -79,7 +79,8 @@
   <section class="card">
     <h2>01 · Ce que le navigateur sait faire</h2>
     <p style="margin:-4px 0 10px"><a href="bench.html" style="color:var(--amber)">→ Banc d'écoute (phase 1A)</a>
-    <br><a href="bench-video.html" style="color:var(--amber)">→ Banc vidéo (phase 1B)</a></p>
+    <br><a href="bench-video.html" style="color:var(--amber)">→ Banc vidéo (phase 1B)</a>
+    <br><a href="choix.html" style="color:var(--amber)">→ Choix du passage (phase 1C)</a></p>
     <table id="caps"><tr><td>mesure…</td><td></td></tr></table>
     <p id="net"></p>
     <p id="sw" style="font-family:var(--mono);font-size:11.5px;color:var(--dimmer);margin-top:2px">
@@ -132,7 +133,7 @@
   import { loadAudio, audioExcerpt, encodeAac } from './src/probe/audio.js';
   import { encoderSelfTest } from './src/probe/encoder-selftest.js';
 
-  window.STUDIO_VERSION = '0.21.0';
+  window.STUDIO_VERSION = '0.26.0';
   document.getElementById('version').textContent = 'v' + window.STUDIO_VERSION;
 
   const $ = (id) => document.getElementById(id);
