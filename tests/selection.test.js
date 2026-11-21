@@ -1,5 +1,6 @@
 import { test, assert } from './harness.js';
 import { coutCandidat, POIDS, choisirPlans } from '../src/core/selection.js';
+import { clipsDe } from './fixtures-montage.js';
 
 const emp = (n) => { const a = new Uint8Array(8); a[0] = n; return a; };
 const cand = (clip, note, e) => ({ clip, note, empreinte: emp(e) });
@@ -33,15 +34,6 @@ test('des empreintes toutes identiques donnent un cout fini', () => {
   const prec = cand(1, 0.5, 7);
   assert(Number.isFinite(coutCandidat(cand(1, 0.5, 7), prec)));
 });
-
-// fabrique : n clips, chacun avec `p` plages de 3 s bien notees
-const clipsDe = (n, p = 3) => Array.from({ length: n }, (_, c) => ({
-  nom: 'clip' + c,
-  plages: Array.from({ length: p }, (_, j) => ({
-    startSec: j * 4, endSec: j * 4 + 3, note: 0.9 - 0.1 * j,
-    empreinte: (() => { const a = new Uint8Array(8); a[0] = c * 40 + j; return a; })()
-  }))
-}));
 
 test('chaque plan est rempli et tombe sur un temps', () => {
   const r = choisirPlans({ longueurs: [3, 3, 2, 2, 1, 1, 2, 2], beatSec: 0.43,
