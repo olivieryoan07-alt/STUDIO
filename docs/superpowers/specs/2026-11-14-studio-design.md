@@ -305,7 +305,9 @@ Choisie par l'utilisateur après écoute comparée de trois logiques (maquette `
 >
 > **La forme fixe cesse donc d'être la règle et devient le repli.** La règle est celle que l'utilisateur avait validée à l'oreille dès la maquette, appliquée pour de bon : **la longueur de chaque plan est dictée par l'énergie de l'extrait à cet instant.**
 
-**La règle, en une phrase :** l'enveloppe lissée de l'extrait est normalisée sur ses propres minimum et maximum, puis chaque valeur donne la longueur du plan qui commence là — **8 temps au plus creux, 1 temps au plus fort**, avec les valeurs intermédiaires entre les deux.
+**La règle, en une phrase :** l'enveloppe lissée de l'extrait est normalisée sur ses propres minimum et maximum, puis chaque valeur donne la longueur du plan qui commence là — **4 temps au plus creux, 1 temps au plus fort**, avec les valeurs intermédiaires entre les deux.
+
+> *Corrigé le 2026-11-21 : la règle disait « 8 temps au plus creux », écrite quand le reel faisait 50 puis 24 temps. Sur 16 temps, un plan de 8 serait la moitié du reel. Quatre, c'est le plan le plus long de la forme de référence, à un temps près.*
 
 Ce qui en découle sans qu'on ait à l'écrire :
 
@@ -331,7 +333,7 @@ Forme de référence — validée à l'oreille en maquette, désormais **repli p
 
 - Toute coupe tombe **sur un temps**. Jamais entre deux.
 - **Coupes franches uniquement.** Aucune transition, aucun fondu.
-- **Aucun plan ne dure moins d'un temps ni plus de huit.** Ce sont les deux bornes de l'échelle, et elles bornent aussi le repli.
+- **Aucun plan ne dure moins d'un temps ni plus de quatre.** Ce sont les deux bornes de l'échelle, et elles bornent aussi le repli.
 - Deux segments consécutifs ne doivent pas se ressembler (§5.2).
 - Un même instant source n'est jamais utilisé deux fois.
 
@@ -345,7 +347,9 @@ Forme de référence — validée à l'oreille en maquette, désormais **repli p
 
 **La dissemblance est une pénalité, pas une interdiction.** *Choix du rédacteur, 2026-11-19.* Prise comme contrainte dure, elle se bloque avec l'anti-objectif 2 : sur de la marche en paysage, deux moments du même clip se ressemblent par nature — même chemin, mêmes arbres, même lumière — donc avec 2 clips et 20 coupes, « jamais deux segments semblables » et « jamais ABABAB » n'ont pas de solution commune. Le sélecteur **minimise une somme de pénalités** (ressemblance entre segments voisins, régularité de l'alternance) plutôt que d'appliquer des règles qui s'excluent. Il préfère donc deux plans un peu semblables du même clip à une alternance mécanique, mais paie ce choix et ne le répète pas vingt fois.
 
-**Chaque clip ajouté apparaît au moins une fois.** *Choix du rédacteur.* L'utilisateur a choisi ses 5 à 10 vidéos ; en écarter une sans le dire serait incompréhensible. Un clip qui note mal est **moins** utilisé, jamais supprimé. Seul le clip *entièrement* inexploitable fait exception, et l'app le dit alors explicitement (§8).
+**Chaque clip ajouté apparaît au moins une fois — tant qu'il y a autant de plans que de clips.** *Choix du rédacteur, révisé le 2026-11-21.* La règle d'origine était absolue, écrite quand le reel comptait 20 plans. Il en compte désormais **8**, et l'utilisateur peut en fournir **10** : la promesse est devenue arithmétiquement intenable.
+
+La règle qui la remplace : avec 5 à 8 clips, **tous apparaissent**. Au-delà, l'app garde les mieux notés et **dit lesquels elle n'a pas utilisés** — c'est une information utile sur sa matière, pas un échec à cacher. Un clip qui note mal est moins utilisé avant d'être écarté, et le clip *entièrement* inexploitable est signalé à part (§8).
 
 **Pas de rotation stricte entre clips.** La maquette alternait les clips à tour de rôle (1, 2, 3, 1, 2, 3…), mais ce n'est pas ce que l'utilisateur a validé — il a validé le *rythme*. Avec 2 clips, une rotation stricte donnerait ABABAB vingt fois, soit exactement l'anti-objectif 2. La sélection se fait donc **par qualité et par dissemblance** : deux segments du même clip peuvent se suivre s'ils ne se ressemblent pas.
 
