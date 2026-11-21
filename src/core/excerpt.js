@@ -25,7 +25,11 @@ const OUTRO = 4;
 export const MIN_SEC = 7;
 export const MAX_SEC = 12;
 
-export function anchorExcerpt({ durationSec, grid, climaxSec }) {
+// Combien de temps dure la fenetre, et le refus quand c'est impossible.
+// EXTRAIT de `anchorExcerpt` le 2026-11-21 : l'ecran de choix en a besoin
+// sans point culminant, pour recalculer la fenetre apres un changement
+// d'octave (§5.1 bis). Aucun changement de comportement.
+export function nombreDeTemps(grid, durationSec) {
   const beatSec = grid.beatSec;
 
   if (durationSec < MIN_SEC) {
@@ -50,7 +54,12 @@ export function anchorExcerpt({ durationSec, grid, climaxSec }) {
   }
 
   const full = OPENING + RISE + BODY + BURST + OUTRO; // 24
-  const beatCount = Math.min(Math.max(full, minBeats), maxBeats, maxByDuration);
+  return Math.min(Math.max(full, minBeats), maxBeats, maxByDuration);
+}
+
+export function anchorExcerpt({ durationSec, grid, climaxSec }) {
+  const beatSec = grid.beatSec;
+  const beatCount = nombreDeTemps(grid, durationSec);
   const durSec = beatCount * beatSec;
 
   let startSec = climaxSec - (OPENING + RISE + BODY) * beatSec;
