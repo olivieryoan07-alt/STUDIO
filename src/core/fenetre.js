@@ -79,3 +79,16 @@ export function redimensionner(fenetre, { durationSec, grid }) {
     beatCount
   };
 }
+
+// Pixel <-> seconde, et dans les deux sens la meme convention : le morceau
+// entier occupe exactement la largeur. Les deux bornent, parce qu'un doigt
+// deborde du canevas en permanence et qu'un temps negatif n'existe pas.
+export function xPourTemps(t, largeur, durationSec) {
+  if (!(durationSec > 0)) return 0;
+  return Math.min(1, Math.max(0, t / durationSec)) * largeur;
+}
+
+export function tempsPourX(x, largeur, durationSec) {
+  if (!(largeur > 0)) return 0;
+  return Math.min(1, Math.max(0, x / largeur)) * durationSec;
+}

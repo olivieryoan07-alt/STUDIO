@@ -1,6 +1,6 @@
 import { test, assert } from './harness.js';
 import { calerSurTemps, placer, fenetreInitiale, decalerDeTemps,
-         changerOctave, redimensionner } from '../src/core/fenetre.js';
+         changerOctave, redimensionner, tempsPourX, xPourTemps } from '../src/core/fenetre.js';
 import { nombreDeTemps, anchorExcerpt } from '../src/core/excerpt.js';
 
 const grille = (bpm, offset = 0) => ({ beatSec: 60 / bpm, offsetSec: offset, beats: [] });
@@ -106,4 +106,15 @@ test('une octave impossible est refusee en nommant la duree', () => {
                        { durationSec: 8, grid: changerOctave(grille(40), 0.5) }); }
   catch (e) { msg = e.message; }
   assert(msg.includes('8') && msg.includes('7'), 'message : ' + msg);
+});
+
+test('pixel et seconde sont reciproques', () => {
+  for (const t of [0, 12.5, 143.2, 300]) {
+    assert(Math.abs(tempsPourX(xPourTemps(t, 343, 300), 343, 300) - t) < 1e-6, '' + t);
+  }
+});
+
+test('hors du canevas, le temps reste dans le morceau', () => {
+  assert(tempsPourX(-50, 343, 300) === 0);
+  assert(tempsPourX(9999, 343, 300) === 300);
 });
