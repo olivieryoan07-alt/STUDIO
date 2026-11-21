@@ -16,3 +16,21 @@ test('un intervalle vide ne donne aucun clic', () => {
 test('un tempo non detecte ne donne aucun clic plutot qu une boucle infinie', () => {
   assert(tempsDesClics({ beatSec: 0, offsetSec: 0, beats: [] }, 0, 10).length === 0);
 });
+
+// RELECTURE FINALE, constat Important 2 : `Math.ceil` ne tolere pas l'epsilon
+// de flottant. Quand le debut de la fenetre tombe EXACTEMENT sur un temps —
+// ce que `placer` garantit a chaque fois — le premier clic sautait un temps
+// sur ~3 % des positions. Or le §5.1 bis fait du clic le seul controle de
+// l'erreur d'octave : un clic en retard ressemble trait pour trait au defaut
+// que l'ecran existe pour ecarter.
+test('un debut cale sur un temps recoit un clic sur ce temps', () => {
+  for (const bpm of [97.3, 128, 140.7, 171]) {
+    const g = { beatSec: 60 / bpm, offsetSec: 0.37, beats: [] };
+    for (let k = 400; k < 440; k++) {
+      const from = g.offsetSec + k * g.beatSec;
+      const t = tempsDesClics(g, from, from + 4);
+      assert(t.length && Math.abs(t[0] - from) < 1e-6,
+             bpm + ' BPM, temps ' + k + ' : ecart ' + (t.length ? t[0] - from : 'aucun clic'));
+    }
+  }
+});

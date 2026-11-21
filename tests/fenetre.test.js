@@ -118,3 +118,26 @@ test('hors du canevas, le temps reste dans le morceau', () => {
   assert(tempsPourX(-50, 343, 300) === 0);
   assert(tempsPourX(9999, 343, 300) === 300);
 });
+
+// RELECTURE FINALE, constat Important 1 : rien ne bornait `½×`. A la
+// quatrieme tape la fenetre tombait a 6,86 s, a la cinquieme a 0,00 s — sous
+// le plancher dur du §5.4 bis — et « Garder ce passage » l'ecrivait sans
+// broncher. Le mecanisme de refus existait pourtant : il n'etait pas declenche.
+test('des demi-tempos repetes sont refuses avant de sortir de 7-12 s', () => {
+  let g = grille(140);
+  let f = { startSec: 30, durSec: 10, beatCount: 24 };
+  let refus = 0;
+  for (let i = 0; i < 6; i++) {
+    const essai = changerOctave(g, 0.5);
+    let nf = null;
+    // le `try` n'entoure QUE l'appel : englober l'assertion la ferait compter
+    // comme un refus, et le test ne pourrait plus echouer. Premiere redaction
+    // faite ainsi, verte sur un code faux.
+    try { nf = redimensionner(f, { durationSec: 300, grid: essai }); }
+    catch (e) { refus++; continue; }
+    assert(nf.durSec >= 7 - 1e-6 && nf.durSec <= 12 + 1e-6,
+           'tape ' + (i + 1) + ' -> ' + nf.durSec.toFixed(2) + ' s');
+    f = nf; g = essai;
+  }
+  assert(refus > 0, 'aucune tape refusee : la butee ne sert a rien');
+});

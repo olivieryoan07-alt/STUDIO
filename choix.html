@@ -102,7 +102,7 @@
   import { createBench } from './src/bench/click-track.js';
   import { mmss } from './src/core/format.js';
 
-  window.STUDIO_VERSION = '0.26.0';
+  window.STUDIO_VERSION = '0.27.0';
   const $ = (id) => document.getElementById(id);
   $('version').textContent = 'v' + window.STUDIO_VERSION;
 
@@ -117,6 +117,11 @@
   function erreur(message) {
     $('stat').className = 'status err';
     $('stat').textContent = message;
+  }
+
+  function effacerPiste() {
+    dessinerPiste($('piste'), {
+      env: null, rate: 0, offsetSec: 0, durationSec: 0, fenetre: null });
   }
 
   function redessiner() {
@@ -172,6 +177,14 @@
       activer(true);
       $('stat').textContent = 'fais glisser la fenêtre, puis écoute.';
     } catch (err) {
+      // RIEN NE DOIT SURVIVRE AU REFUS. `fenetre` etait la seule variable
+      // d'etat non reinitialisee : le canevas, qui n'est pas dans COMMANDES,
+      // continuait d'obeir au doigt, reaffichait « 10,3 s · 24 temps » sur un
+      // morceau de 4 s et lancait la lecture du fichier qu'on venait de
+      // refuser (relecture du 2026-11-21).
+      fenetre = null;
+      effacerPiste();
+      $('infos').innerHTML = '';
       erreur(err.message);
     }
   });
@@ -193,7 +206,9 @@
   }
 
   $('piste').addEventListener('pointerdown', (e) => {
-    if (!fenetre) return;
+    // `saisi` ecarte le second doigt : sur un 12 mini le pouce qui se repose
+    // sur l'ecran ecrasait `ecart` et faisait lutter les deux contacts.
+    if (!fenetre || saisi) return;
     const L = $('piste').clientWidth;
     const x = xLocal(e);
     const xDebut = xPourTemps(fenetre.startSec, L, analyse.durationSec);
@@ -210,12 +225,18 @@
     if (saisi) { deplacerVers(xLocal(e)); e.preventDefault(); }
   });
 
-  $('piste').addEventListener('pointerup', (e) => {
-    if (!saisi) return;
+  function relacher(e) {
+    if (!saisi) return false;
     saisi = false;
-    $('piste').releasePointerCapture(e.pointerId);
-    jouer();
-  });
+    try { $('piste').releasePointerCapture(e.pointerId); } catch (_) { /* deja relache */ }
+    return true;
+  }
+
+  $('piste').addEventListener('pointerup', (e) => { if (relacher(e)) jouer(); });
+
+  // Sans ce gestionnaire, un geste systeme d'iOS annule le pointeur et laisse
+  // `saisi` a vrai : la fenetre suivrait ensuite le doigt sans aucun appui.
+  $('piste').addEventListener('pointercancel', relacher);
 
   // --- commandes ------------------------------------------------------------
   const decaler = (n) => {

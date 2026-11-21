@@ -28,9 +28,16 @@ export function tempsDesClics(grid, fromSec, toSec) {
   const out = [];
   if (!grid || !Number.isFinite(grid.beatSec) || grid.beatSec <= 0) return out;
   const b = grid.beatSec;
-  let n = Math.max(0, Math.ceil((fromSec - grid.offsetSec) / b));
+  // On part UN TEMPS TROP TOT et on filtre avec une tolerance. `Math.ceil`
+  // seul ne tolere pas l'epsilon de flottant : quand `fromSec` tombe
+  // exactement sur un temps — ce que `placer` garantit a chaque fois sur
+  // l'ecran de choix — (fromSec - offsetSec) / b vaut 24,000000000000004 et
+  // le temps du bord etait saute. Mesure du 2026-11-21 : 143 positions sur
+  // 5000, soit un premier clic un temps en retard trois fois sur cent.
+  const EPS = 1e-9;
+  let n = Math.max(0, Math.round((fromSec - grid.offsetSec) / b) - 1);
   for (let t = grid.offsetSec + n * b; t < toSec; n++, t = grid.offsetSec + n * b) {
-    if (t >= fromSec) out.push(t);
+    if (t >= fromSec - EPS) out.push(t);
   }
   return out;
 }

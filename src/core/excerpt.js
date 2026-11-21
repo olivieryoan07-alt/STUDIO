@@ -53,6 +53,18 @@ export function nombreDeTemps(grid, durationSec) {
     );
   }
 
+  // Second refus, ajoute a la relecture du 2026-11-21 : a tempo tres lent,
+  // AUCUN nombre entier de temps ne tient entre 7 et 12 s. La fonction
+  // rendait alors `maxBeats`, qui passe sous le plancher — mesure : quatre
+  // tapes de `½×` depuis 140 BPM donnaient une fenetre de 6,86 s, cinq une
+  // fenetre de 0,00 s, et l'ecran les ecrivait dans `studio.passage`.
+  if (maxBeats < minBeats) {
+    throw new Error(
+      'à ' + (60 / beatSec).toFixed(1) + ' BPM, aucun nombre entier de temps ' +
+      'ne tient entre ' + MIN_SEC + ' et ' + MAX_SEC + ' s'
+    );
+  }
+
   const full = OPENING + RISE + BODY + BURST + OUTRO; // 24
   return Math.min(Math.max(full, minBeats), maxBeats, maxByDuration);
 }
