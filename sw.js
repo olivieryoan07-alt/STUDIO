@@ -7,7 +7,7 @@
 
 import { cacheStrategy } from './src/core/cache-strategy.js';
 
-const VERSION = '0.28.0';
+const VERSION = '0.29.0';
 const CACHE = 'studio-' + VERSION;
 
 const SHELL = [
@@ -39,7 +39,11 @@ const SHELL = [
   './src/core/ranges.js',
   './src/core/gris.js',
   './src/core/fenetre.js',
+  './src/core/decoupe.js',
+  './src/core/selection.js',
+  './src/core/montage.js',
   './src/app/piste-view.js',
+  './src/app/montage-view.js',
   './src/probe/demux.js',
   './src/probe/decode-frames.js',
   './src/probe/analyse-clip.js',
@@ -49,6 +53,7 @@ const SHELL = [
   './bench.html',
   './bench-video.html',
   './choix.html',
+  './bench-montage.html',
   './src/bench/clip-view.js',
   './src/probe/caps.js',
   './src/probe/inspect.js',

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10131a">
+<link rel="icon" href="icon-192.png">
+<title>Banc de montage — STUDIO</title>
+<style>
+  :root{
+    --ground:#10131a; --panel:#191e28; --line:#2e3747; --line-soft:#242b38;
+    --txt:#e6e9f0; --dim:#8d97a8; --dimmer:#5f6878;
+    --amber:#e9a640; --rouge:#cf4b36; --vert:#52a06f;
+    --mono:"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--txt);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:max(18px,env(safe-area-inset-top)) 16px max(28px,env(safe-area-inset-bottom))}
+  .wrap{max-width:640px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:10px}
+  h1{font-size:22px;letter-spacing:.12em;text-transform:uppercase;margin:0;font-weight:700}
+  .version{font-family:var(--mono);font-size:12px;color:var(--dimmer)}
+  .tagline{color:var(--dim);margin:2px 0 18px;font-size:13.5px}
+  .card{border:1px solid var(--line);border-radius:3px;background:var(--panel);
+        padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;
+           color:var(--amber);margin:0 0 9px}
+  .card > p{margin:0 0 11px;color:var(--dim);font-size:13.5px}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px;
+        font-variant-numeric:tabular-nums}
+  td{padding:4px 0;border-bottom:1px solid var(--line-soft)}
+  td:first-child{color:var(--dim);padding-right:12px}
+  td:last-child{text-align:right}
+  tr:last-child td{border-bottom:0}
+  input[type=file]{display:block;font-family:var(--mono);font-size:12.5px;
+                   color:var(--dim);margin-bottom:10px;max-width:100%}
+  input[type=file]::file-selector-button{
+    font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11px;font-weight:600;
+    background:transparent;color:var(--amber);border:1px solid var(--amber);
+    border-radius:2px;padding:7px 13px;margin-right:10px}
+  .status{font-family:var(--mono);font-size:12px;color:var(--amber);margin:10px 0 0;min-height:1.2em}
+  .status.err{color:var(--rouge)}
+  canvas{width:100%;height:104px;display:block;margin-top:10px;border-radius:2px}
+  .row{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0 0;align-items:center}
+  button{font:inherit;text-transform:uppercase;letter-spacing:.11em;font-size:11.5px;
+         font-weight:600;background:transparent;color:var(--amber);
+         border:1px solid var(--amber);border-radius:2px;padding:9px 14px;cursor:pointer}
+  button:disabled{opacity:.35;cursor:default}
+  button.on{background:var(--amber);color:#171208}
+  .legende{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;
+           font-family:var(--mono);font-size:11px;color:var(--dimmer)}
+  .legende span{display:flex;align-items:center;gap:5px}
+  .legende s{width:10px;height:10px;border-radius:2px;display:block;text-decoration:none}
+  .plans{font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:8px;
+         line-height:1.7}
+  .alerte{color:var(--rouge)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Banc de montage</h1>
+    <span class="version" id="version"></span>
+  </header>
+  <p class="tagline">Phase 1C-2 — le rythme des coupes, avant toute image.</p>
+
+  <section class="card">
+    <h2>La matière</h2>
+    <p>Un morceau, puis 2 à 10 clips. Tout reste sur l'appareil.</p>
+    <input type="file" id="afile" accept="audio/*,.mp3,.m4a,.wav">
+    <input type="file" id="vfiles" accept="video/*,.mp4,.mov" multiple>
+    <p class="status" id="stat"></p>
+    <table id="infos"></table>
+    <div class="row">
+      <button id="ecouter" disabled>Écouter l'extrait</button>
+      <button id="remonter" disabled>Trois autres</button>
+    </div>
+  </section>
+
+  <div id="propositions"></div>
+</div>
+
+<script src="./vendor/mp4box.all.min.js"></script>
+<script type="module">
+  import { analyseTrack } from './src/probe/analyse-track.js';
+  import { analyseClip } from './src/probe/analyse-clip.js';
+  import { monter } from './src/core/montage.js';
+  import { fenetreInitiale } from './src/core/fenetre.js';
+  import { dessinerFrise, couleurDeClip, HAUTEUR_FRISE } from './src/app/montage-view.js';
+  import { createBench } from './src/bench/click-track.js';
+  import { mmss } from './src/core/format.js';
+
+  window.STUDIO_VERSION = '0.29.0';
+  const $ = (id) => document.getElementById(id);
+  $('version').textContent = 'v' + window.STUDIO_VERSION;
+
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx = null, bench = null;
+  let audio = null, clips = [], extrait = null, source = 'aucune';
+  let tirage = 0, enLecture = false;
+
+  const erreur = (m) => { $('stat').className = 'status err'; $('stat').textContent = m; };
+  const pret = () => audio && clips.length;
+
+  // Le passage vient de `choix.html` s'il y est passe ; sinon on ouvre sur la
+  // suggestion par defaut, ET ON LE DIT — un rythme juge sur une fenetre que
+  // l'utilisateur n'a pas choisie ne prouverait rien.
+  function lirePassage() {
+    try {
+      const brut = sessionStorage.getItem('studio.passage');
+      if (brut) { source = 'choisi dans l’écran de choix'; return JSON.parse(brut); }
+    } catch (_) { /* stockage indisponible */ }
+    source = 'suggestion par défaut — passe par l’écran de choix pour juger pour de vrai';
+    const f = fenetreInitiale({
+      durationSec: audio.durationSec, grid: audio.grid, climaxSec: audio.climax.timeSec
+    });
+    return { ...f, bpm: 60 / audio.grid.beatSec, offsetSec: audio.grid.offsetSec };
+  }
+
+  function rendre() {
+    const noms = clips.map((c) => c.nom);
+    const graines = [0, 1, 2].map((g) => g + tirage * 3);
+    const props = monter({
+      extrait, env: audio.env, rate: audio.rate, offsetSec: audio.offsetSec,
+      clips, graines
+    });
+
+    $('infos').innerHTML =
+      `<tr><td>Passage</td><td>${mmss(extrait.startSec)} → ${mmss(extrait.startSec + extrait.durSec)}</td></tr>` +
+      `<tr><td>Origine</td><td>${source}</td></tr>` +
+      `<tr><td>Reel</td><td style="color:var(--amber)">${props[0].durSec.toFixed(2)} s · ${extrait.beatCount} temps</td></tr>` +
+      `<tr><td>Tempo</td><td>${extrait.bpm.toFixed(1)} BPM</td></tr>` +
+      `<tr><td>Rythme</td><td>${props[0].longueurs.join(' · ')} → ${props[0].longueurs.length} plans</td></tr>` +
+      `<tr><td>Clips</td><td>${clips.length} · ${clips.reduce((a, c) => a + c.plages.length, 0)} plages</td></tr>`;
+
+    $('propositions').innerHTML = props.map((p, i) => `
+      <section class="card">
+        <h2>Proposition ${i + 1} — graine ${p.graine}</h2>
+        <canvas id="frise${i}"></canvas>
+        <div class="legende">${noms.map((n) =>
+          `<span><s style="background:${couleurDeClip(n, noms)}"></s>${n}</span>`).join('')}</div>
+        <div class="plans">${p.plans.map((x, k) =>
+          `${k + 1}. ${x.nom} · ${x.startSec.toFixed(2)} → ${(x.startSec + x.durSec).toFixed(2)} s · ${x.temps} temps`
+        ).join('<br>')}</div>
+        ${p.clipsInutilises.length
+          ? `<div class="plans alerte">non utilisés : ${p.clipsInutilises.join(', ')}</div>` : ''}
+        ${p.manque
+          ? `<div class="plans alerte">${p.manque} plan(s) n'ont pas trouvé de matière libre</div>` : ''}
+      </section>`).join('');
+
+    props.forEach((p, i) => dessinerFrise($('frise' + i), {
+      env: audio.env, rate: audio.rate, offsetSec: audio.offsetSec,
+      extrait, proposition: p, noms
+    }));
+
+    $('ecouter').disabled = false;
+    $('remonter').disabled = false;
+  }
+
+  async function relancer() {
+    if (!pret()) return;
+    try {
+      extrait = lirePassage();
+      $('stat').className = 'status';
+      rendre();
+      $('stat').textContent = 'écoute l’extrait en regardant la frise.';
+    } catch (err) { erreur(err.message); }
+  }
+
+  $('afile').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      $('stat').className = 'status';
+      audio = await analyseTrack(f, (p) => { $('stat').textContent = 'morceau : ' + p.phase + '…'; });
+      await relancer();
+    } catch (err) { audio = null; erreur(err.message); }
+  });
+
+  $('vfiles').addEventListener('change', async (e) => {
+    const fichiers = [...e.target.files];
+    if (!fichiers.length) return;
+    clips = [];
+    try {
+      for (let i = 0; i < fichiers.length; i++) {
+        const a = await analyseClip(fichiers[i], (p) =>
+          $('stat').textContent = `clip ${i + 1}/${fichiers.length} : ${p.phase}` +
+            (p.fait ? ` ${p.fait}/${p.total}` : '') + '…');
+        clips.push({ nom: fichiers[i].name.replace(/\.[^.]+$/, ''), plages: a.plages });
+      }
+      await relancer();
+    } catch (err) { erreur(err.message); }
+  });
+
+  $('ecouter').addEventListener('click', () => {
+    if (enLecture) {
+      if (bench) bench.stop();
+      enLecture = false;
+      $('ecouter').textContent = 'Écouter l’extrait';
+      $('ecouter').classList.remove('on');
+      return;
+    }
+    if (!ctx) { ctx = new AC(); bench = createBench(ctx); }
+    if (ctx.state === 'suspended') ctx.resume();
+    bench.play(audio.buffer, audio.grid, -1, extrait.startSec,
+               extrait.startSec + extrait.durSec,
+               { clics: true, boucle: true, tonCulminant: false });
+    enLecture = true;
+    $('ecouter').textContent = 'Arrêter';
+    $('ecouter').classList.add('on');
+  });
+
+  // « Trois autres » (§5.1) : l'analyse n'est pas refaite, seules les graines
+  // changent — donc le rythme reste le meme et la selection change.
+  $('remonter').addEventListener('click', () => { tirage++; rendre(); });
+</script>
+</body>
+</html>
